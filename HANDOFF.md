@@ -214,7 +214,7 @@ görünmüyordu. #10 düzeltilince #11 anında testi kırdı. Ders: "çalışıy
 "doğru" aynı şey değil — iki hatanın birbirini götürdüğü bir kod, ilk
 düzeltmede bozuluyormuş gibi görünür.
 
-![kenar halkası](docs/kenar-halkasi.png)
+> *(Görsel: `docs/kenar-halkasi.png` — kişisel fotoğraf içerdiği için repoya dahil edilmedi; ölçümün sayıları yukarıda.)*
 
 *Etek ucundaki koyu çizgi: önce · sadece çekirdekler eşitlenince (siluet fazla
 inceldi, base sızdı) · +1 px genişletme ve kenar rengi tazelemesiyle.*
@@ -341,7 +341,7 @@ Sayı yarıya indi ama asıl sonuç dağılımda: eskiden kirlilik **tek bir ban
 toplanıyordu (görünür beyaz şerit), şimdi silüet kenarına yayılmış ince bir
 kalıntı. Görsel olarak bel bandı tamamen kayboldu.
 
-![önce / sonra](docs/bel-cizgisi-once-sonra.png)
+> *(Görsel: `docs/bel-cizgisi-once-sonra.png` — kişisel fotoğraf içerdiği için repoya dahil edilmedi; ölçümün sayıları yukarıda.)*
 
 *Soldan sağa: eski base'de bel bandı · aynı kare teşhis boyamasıyla (kırmızı =
 poloya ait olmayan piksel) · yeni base'de aynı polo · yeni base'de krem-sarı
@@ -476,7 +476,7 @@ kalmış boşluk" sanıp geri dolduruyordu.
 atladığı tek kıyafet). Bir de filtre katmanda delik açtığında altından gösterim
 base'i görünüyor — nötr olduğu için silik gri bir şerit olarak okunuyor.
 
-![kombinler](docs/kombinler.png)
+> *(Görsel: `docs/kombinler.png` — kişisel fotoğraf içerdiği için repoya dahil edilmedi; ölçümün sayıları yukarıda.)*
 
 ### 7.5 Turkuaz base deneyi — BAŞARISIZ (ölçüldü, geri alındı)
 
@@ -493,7 +493,7 @@ verildi — turkuaz kıyafete sahip olmak gerekmedi), sonra tüm dolap yeniden
 
 **Ama bindirme tarafı bozuldu.** Belde bağıran bir turkuaz bant çıktı.
 
-![turkuaz deneyi](docs/turkuaz-deneyi.png)
+> *(Görsel: `docs/turkuaz-deneyi.png` — kişisel fotoğraf içerdiği için repoya dahil edilmedi; ölçümün sayıları yukarıda.)*
 
 **Öğrenilen kural — base'in renginin İKİ ZIT gereksinimi var:**
 
@@ -537,7 +537,7 @@ Kombin denemek için:
 python cli.py preview 10 7 -o kombin.png     # sarı baskılı tişört + gri şort
 ```
 
-![kombinler](docs/kombinler.png)
+> *(Görsel: `docs/kombinler.png` — kişisel fotoğraf içerdiği için repoya dahil edilmedi; ölçümün sayıları yukarıda.)*
 
 *Faz 1'in çıktısı: üç kombin, hepsi tek bir base'den üretilmiş katmanların
 bindirilmesiyle — yeni API çağrısı yok, anlık, bedava. Soldan sağa #10+#7,
@@ -816,7 +816,7 @@ kıyafetler **zincirleme** giydiriliyor: önce alt, sonra üst; her adım bir
 öncekinin çıktısını girdi alıyor. Yani model üstü giydirirken altı görüyor.
 Katman çıkarımı yok, bindirme yok — dolayısıyla çıkarımın hiçbir kusuru da yok.
 
-![gerçekçi render](docs/faz4-gercekci.png)
+> *(Görsel: `docs/faz4-gercekci.png` — kişisel fotoğraf içerdiği için repoya dahil edilmedi; ölçümün sayıları yukarıda.)*
 
 *Krem polo + siyah şort, zincirleme. Katman bindirmesindeki bel geçişi
 artefaktı ve kenar halkası burada hiç yok.*

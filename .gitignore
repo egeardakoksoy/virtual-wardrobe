@@ -35,3 +35,6 @@ data_yedek_*/
 
 # Claude Code yerel ayarları
 .claude/settings.local.json
+
+# Ölçüm görselleri — kişisel fotoğraf içeriyor
+docs/
