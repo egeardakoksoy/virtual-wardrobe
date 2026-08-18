@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Sanal Dolap</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <h1>AI Sanal Dolap</h1>
+    <p class="alt">Kıyafet seç, mankenin üstünde anında gör. Katmanlar hazır — yeni istek gitmiyor.</p>
+  </header>
+
+  <main>
+    <section class="panel" id="dolap-panel">
+      <h2>Dolap</h2>
+
+      <select id="sablon" title="Kıyafet tipi — çekim şablonunu belirler"></select>
+
+      <label id="yukle-alan" for="dosya">
+        <strong>+ Kıyafet ekle</strong>
+        <span class="alt">Fotoğrafı seç ya da buraya sürükle · ~$0.10</span>
+      </label>
+      <input id="dosya" type="file" accept="image/*" capture="environment" multiple hidden>
+      <p id="yukle-durum" class="alt"></p>
+
+      <!-- Hizalama paneli: fotoğrafı şablona OTURT.
+           Telefonda canlı kamera kaplaması HTTPS gerektirdiği için (localhost
+           hariç) akış "çek → burada hizala → onayla" şeklinde. Kaydırma ve
+           ölçekleme sunucuya gönderiliyor ve kırpmadan ÖNCE uygulanıyor. -->
+      <div id="hizalama" class="gizli">
+        <div class="onizleme" id="hizalama-tuval">
+          <img id="hizalama-foto" alt="" draggable="false">
+          <svg id="hizalama-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <polygon id="hizalama-poly" points=""></polygon>
+          </svg>
+        </div>
+
+        <div class="hiz-kontrol">
+          <div class="dpad">
+            <button data-tasi="0,-1" title="Yukarı (↑)">↑</button>
+            <button data-tasi="-1,0" title="Sola (←)">←</button>
+            <button id="hiz-sifirla" class="ikincil" title="Sıfırla (0)">⟲</button>
+            <button data-tasi="1,0" title="Sağa (→)">→</button>
+            <button data-tasi="0,1" title="Aşağı (↓)">↓</button>
+          </div>
+
+          <label class="kaydir">
+            <span>Boyut</span>
+            <input id="hiz-olcek" type="range" step="0.01">
+            <output id="hiz-olcek-deger">%100</output>
+          </label>
+
+          <label class="kaydir">
+            <span>Döndür</span>
+            <input id="hiz-donme" type="range" step="0.5">
+            <output id="hiz-donme-deger">0°</output>
+          </label>
+        </div>
+
+        <p id="hizalama-not" class="alt"></p>
+        <div class="aksiyon">
+          <button id="hizalama-onay">Bu fotoğrafı kullan</button>
+          <button id="hizalama-iptal" class="ikincil">Vazgeç</button>
+        </div>
+      </div>
+
+      <!-- Sonuç kontrolü: kırpma bittikten SONRA şablonun kıyafete oturup
+           oturmadığı burada görünüyor. Hizalamanın işe yarayıp yaramadığını
+           kullanıcı ancak burada anlayabilir. -->
+      <div id="sonuc" class="gizli">
+        <div class="onizleme kirpik">
+          <img id="sonuc-foto" alt="">
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+            <polygon id="sonuc-poly" points=""></polygon>
+          </svg>
+        </div>
+        <p id="sonuc-not" class="alt"></p>
+        <div class="aksiyon">
+          <button id="sonuc-kapat" class="ikincil">Tamam</button>
+        </div>
+      </div>
+
+      <div id="dolap"></div>
+    </section>
+
+    <section class="panel sahne">
+      <!-- Manken şeridi (§28): birden çok manken yan yana yaşıyor, her birinin
+           KENDİ katman seti var. Geçiş ücretsiz ve hiçbir şey silmiyor — o
+           yüzden bir "giriş ekranı" değil, her zaman görünen bir şerit:
+           kullanıcı hangi zemin üzerinde olduğunu her an görüyor ve tek
+           tıklamayla değiştiriyor. -->
+      <div id="manken-serit">
+        <div id="manken-liste"></div>
+        <p id="manken-not" class="alt"></p>
+      </div>
+      <input id="manken-dosya" type="file" accept="image/*" hidden>
+
+      <div id="manken">
+        <img id="base" alt="Base manken">
+        <!-- katmanlar buraya bindirilir -->
+        <img id="render-img" class="gizli" alt="Gerçekçi görünüm">
+      </div>
+      <!-- Film şeridi: düzenleme sürümleri küçük görsel olarak.
+           Metin listesinden üstün, çünkü her sürüm ÜCRETLİ üretildi — ne
+           olduğunu görmek, prompt'u okuyup hayal etmekten iyi. -->
+      <div id="serit" class="gizli"></div>
+      <p id="olcum" class="alt"></p>
+    </section>
+
+    <section class="panel" id="kombin-panel">
+      <h2>Kombin</h2>
+      <div id="secilenler" class="bos">Henüz kıyafet seçmedin.</div>
+
+      <div class="aksiyon">
+        <input id="ad" type="text" placeholder="Kombine ad ver (opsiyonel)" autocomplete="off">
+        <button id="kaydet" disabled>Kaydet</button>
+        <button id="temizle" class="ikincil" disabled>Temizle</button>
+      </div>
+
+      <h2>Gerçekçi görünüm</h2>
+      <p id="render-bilgi" class="alt">Kıyafet seç.</p>
+      <div class="aksiyon">
+        <button id="render" disabled>Gerçekçi Göster</button>
+        <button id="katmana-don" class="ikincil gizli">Katman görünümüne dön</button>
+      </div>
+
+      <!-- Düzenleme sohbeti — gerçekçi görünümün HEMEN ALTINDA.
+           Panel her zaman görünür: gizli olsaydı özelliğin varlığı ancak
+           render üretildikten sonra keşfedilirdi. Render yokken kontroller
+           kapalı ve sebebi yazıyor. -->
+      <div id="duzenle">
+        <h2>Düzenle <span class="rozet-yeni">yeni</span></h2>
+
+        <!-- Kaynak seçimi: düzenleme neyin üzerine yapılsın?
+             Katman bindirmesi ÜCRETSİZ üretiliyor, yani düzenlemek için önce
+             ücretli bir render almak zorunlu değil. Takas kullanıcının. -->
+        <div class="kaynak-sec" id="duzenle-kaynak">
+          <button type="button" data-mod="layers" class="secili">
+            Katman görüntüsü<span class="alt">bedava zemin</span>
+          </button>
+          <button type="button" data-mod="render">
+            Gerçekçi render<span class="alt">temiz zemin</span>
+          </button>
+        </div>
+
+        <div id="duzenle-gecmis" class="bos">Henüz düzenleme yok.</div>
+
+        <div class="oneriler" id="duzenle-oneri">
+          <button type="button" data-p="roll up the sleeves">kolları kıvır</button>
+          <button type="button" data-p="tuck in the shirt">içine sok</button>
+          <button type="button" data-p="turn the person slightly to the left">hafif sola dön</button>
+          <button type="button" data-p="soft daylight studio lighting">stüdyo ışığı</button>
+        </div>
+
+        <textarea id="duzenle-metin" rows="2"
+                  placeholder="Ne değişsin? Türkçe yazabilirsin — örn: kolları dirseğe kadar kıvır"></textarea>
+        <p id="duzenle-bilgi" class="alt"></p>
+        <div class="aksiyon">
+          <button id="duzenle-gonder" disabled>Uygula (ücretli)</button>
+          <div class="ikili">
+            <button id="duzenle-geri" class="ikincil" disabled>← Geri</button>
+            <button id="duzenle-ileri" class="ikincil" disabled>İleri →</button>
+          </div>
+          <button id="duzenle-sifirla" class="ikincil" disabled>Başa dön</button>
+        </div>
+      </div>
+
+      <h2>Kayıtlı kombinler</h2>
+      <div id="kayitlar" class="bos">Kayıtlı kombin yok.</div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

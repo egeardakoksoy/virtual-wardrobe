@@ -1,0 +1,685 @@
+/* AI Sanal Dolap — moda editoryal görünüm.
+ *
+ * ÜÇ KARAR, hepsi bilinçli:
+ *
+ * 1. KIRIK BEYAZ ZEMİN (#F6F5F1), saf beyaz değil. Saf beyaz ekranda parlıyor
+ *    ve kıyafet fotoğraflarının kendi beyazlarıyla yarışıyor. Hafif sıcak bir
+ *    kağıt tonu, ürün görsellerini öne çıkarıyor — katalog mantığı.
+ *
+ * 2. KESKİN HAT: her yerde border-radius 0 ve 1 px ince çizgi. Yuvarlak köşe
+ *    "uygulama" hissi veriyor, düz kenar "dergi" hissi.
+ *
+ * 3. İKİ TİPOGRAFİ AİLESİ: başlıklar ve açıklamalar serif/italik (editoryal
+ *    ses), veriler ve düğmeler sans (okunaklılık). Karışım moda sitelerinin
+ *    imzası; tek aile kullanmak ikisinden birini feda ederdi.
+ *
+ * Web fontu YOK — dışarıdan font çekmek yerel bir uygulamaya ağ bağımlılığı
+ * ekler ve font gelmezse yerleşim kayar. Sistem serifleri (Georgia/Times) her
+ * makinede var.
+ */
+
+:root {
+  --kagit: #f6f5f1;      /* sayfa zemini — kırık beyaz */
+  --panel: #ffffff;      /* kartlar */
+  --panel-2: #faf9f6;    /* içerideki ikincil yüzeyler */
+  --cizgi: #e3e0d8;      /* ince ayraç */
+  --cizgi-koyu: #c9c5ba; /* vurgulu ayraç */
+  --murekkep: #16151a;   /* ana metin — saf siyah değil */
+  /* İkincil metin. Önce #85827a idi ve "soluk gri" estetik olarak daha
+     editoryal duruyordu — ama ölçüldü: beyaz üzerinde 3.8:1 kontrast, WCAG
+     AA'nın 4.5 eşiğinin altında. Bu metinlerin çoğu 11-13 px ve İTALİK, yani
+     zaten okuması en zor olanlar. Ton korunacak kadar az koyulaştırıldı. */
+  --alt: #6f6c63;        /* ikincil metin — en açık zeminde bile ≥4.5:1 */
+  --vurgu: #16151a;      /* aksan = mürekkep. Moda sitelerinin alışkanlığı */
+  --uyari: #9a6425;
+  --hata: #a33b31;
+
+  --serif: Georgia, "Times New Roman", "Iowan Old Style", serif;
+  --sans: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--kagit);
+  color: var(--murekkep);
+  font: 15px/1.55 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- Başlık --- */
+
+header {
+  padding: 26px 28px 20px;
+  border-bottom: 1px solid var(--murekkep);
+}
+header h1 {
+  margin: 0;
+  font: 400 27px/1.1 var(--serif);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+header .alt { margin-top: 7px; }
+
+/* İkincil metnin tamamı italik serif — istenen "editoryal ses" burada. */
+.alt {
+  color: var(--alt);
+  font: italic 400 13.5px/1.5 var(--serif);
+  margin: 4px 0 0;
+}
+
+/* Sayfa ORTALANIYOR ve genişliği sınırlı.
+ *
+ * Ölçüldü: 2000 px'lik ekranda manken 430 px ile ortada duruyordu ve iki
+ * yanında ~770 px boşluk kalıyordu — paneller kenara itilmiş, orta bomboş
+ * görünüyordu. Tam genişliğe yayılmak geniş ekranda içeriği dağıtıyor.
+ * Sınırlı genişlik + ortalama, moda/e-ticaret sitelerinin standart çözümü:
+ * boşluk sayfanın DIŞINDA kalıyor, içerik bir arada duruyor. */
+main {
+  display: grid;
+  /* Yan paneller genişletildi (300→360, 340→400) ve sayfa tavanı 1440→1560
+     çıkarıldı ki genişleme ortadaki mankeni sıkıştırmasın.
+     Ölçüldü: 1920 px ekranda manken hâlâ 560 px, iki yanında ~60 px pay var.
+     Dolap kartları 134→166 px oldu, yani kıyafet adı artık okunuyor. */
+  grid-template-columns: 360px minmax(320px, 1fr) 400px;
+  gap: 26px;
+  padding: 26px 22px;
+  max-width: 1560px;
+  margin: 0 auto;
+  align-items: start;
+}
+
+/* --- Panel --- */
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--cizgi);
+  border-radius: 0;
+  padding: 18px 16px;
+}
+
+/* Bölüm başlıkları: küçük, seyrek harfli, büyük harf — dergi ara başlığı.
+ *
+ * ARALIK KURALI TERSİNE ÇEVRİLDİ. Önce `h2:not(:first-child)` ile üst boşluk
+ * veriliyordu ve sessiz bir hata üretiyordu: bir başlık kendi SARMALAYICISININ
+ * ilk çocuğuysa (ör. `#duzenle > h2`) kural hiç uygulanmıyor, başlık bir
+ * önceki düğmenin üstüne biniyordu.
+ *
+ * Artık boşluk VARSAYILAN, sıfırlama istisna: yalnızca panelin en başındaki
+ * başlık üstten boşluksuz. Böylece yeni bir bölüm nereye sarmalanırsa
+ * sarmalansın doğru aralığı alıyor. */
+.panel h2 {
+  margin: 26px 0 12px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--murekkep);
+  font: 600 10.5px/1 var(--sans);
+  text-transform: uppercase;
+  letter-spacing: .19em;
+  color: var(--murekkep);
+}
+.panel > h2:first-child { margin-top: 0; }
+
+/* --- Dolap --- */
+#dolap-panel { max-height: calc(100vh - 140px); overflow-y: auto; }
+
+.kategori { margin-bottom: 20px; }
+.kategori > h3 {
+  margin: 0 0 9px;
+  font: italic 400 13px/1 var(--serif);
+  color: var(--alt);
+  letter-spacing: .02em;
+}
+
+.kiyafetler { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.kiyafet {
+  /* min-width: 0 ŞART. Grid öğesinin varsayılan `min-width: auto` değeri,
+     içindeki `white-space: nowrap` başlığın sütunu genişletmesine izin
+     veriyordu — dolap panelinde yatay kaydırma çubuğu bu yüzden çıkıyordu.
+     Sıfırlayınca ellipsis devreye giriyor ve sütun sığıyor. */
+  min-width: 0;
+  background: var(--panel);
+  border: 1px solid var(--cizgi);
+  border-radius: 0;
+  padding: 0 0 8px;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  transition: border-color .12s;
+}
+.kiyafet:hover { border-color: var(--cizgi-koyu); }
+/* Seçim: renkli halka değil, kalın siyah çerçeve. Katalogda seçili ürün böyle
+   işaretlenir — renk kıyafetin rengiyle yarışmaz. */
+.kiyafet.secili {
+  border-color: var(--murekkep);
+  box-shadow: inset 0 0 0 1px var(--murekkep);
+}
+
+.kiyafet img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  background: #fff;
+  border-bottom: 1px solid var(--cizgi);
+  display: block;
+  mix-blend-mode: multiply;   /* beyaz zeminli kırpıklar karta kaynasın */
+}
+
+/* Kıyafet adı artık İKİ SATIRA sarabiliyor.
+   Önce tek satır + üç nokta vardı ve "bisiklet yaka baskılı tişört" gibi
+   adların hepsi "BİSİKLET YAK…" diye kesiliyordu — yani kart, kıyafeti
+   ayırt etmeye yaramıyordu. Panel genişleyince yer açıldı; iki satır sınırı
+   duruyor ki kartlar aynı yükseklikte kalsın. */
+.kiyafet .ad {
+  font-size: 12.5px;
+  line-height: 1.3;
+  margin: 7px 8px 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 2.6em;
+}
+.kiyafet .renk {
+  font: italic 400 11.5px/1.3 var(--serif);
+  color: var(--alt);
+  margin: 0 8px;
+}
+
+.kiyafet.katmansiz { opacity: .45; cursor: not-allowed; }
+.kiyafet.katmansiz:hover { border-color: var(--cizgi); }
+.kiyafet .rozet {
+  font: 600 9.5px/1.6 var(--sans);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--uyari);
+  border: 1px solid currentColor;
+  padding: 0 5px;
+  display: inline-block;
+  margin: 5px 0 0 8px;
+}
+
+/* --- Sahne --- */
+.sahne { display: flex; flex-direction: column; align-items: center; }
+
+#manken {
+  position: relative;
+  width: 100%;
+  /* 430 → 560: sayfa ortalandığı için orta sütunda yer açıldı ve ürünün
+     kendisi büyüdü. Katalog sayfasında en büyük öge ürün olmalı. */
+  max-width: 560px;
+  aspect-ratio: 864 / 1296;
+  border: 1px solid var(--cizgi);
+  overflow: hidden;
+  /* Sahne zemini sayfayla AYNI kağıt tonu. Ayrı bir gri kullanmak, mankeni
+     kutu içine hapsedilmiş gibi gösteriyordu; aynı ton olunca fotoğraf
+     sayfanın üstünde duruyormuş gibi okunuyor — katalog sayfası mantığı.
+     Base fotoğrafın duvarı da açık, o yüzden geçiş yumuşak. */
+  background: var(--kagit);
+}
+#manken img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.gizli { display: none !important; }
+
+/* --- Manken şeridi (§28) ---
+   Film şeridiyle aynı görsel dil: küçük kareler, aktif olan mürekkep çerçeveli.
+   Kasıtlı benzerlik — ikisi de "hangi sürümdeyim" sorusunu cevaplıyor. */
+#manken-serit {
+  width: 100%;
+  max-width: 560px;
+  margin-bottom: 12px;
+}
+#manken-liste {
+  display: flex;
+  gap: 9px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+#manken-liste .mkart {
+  position: relative;
+  flex: 0 0 auto;
+  width: 74px;
+  background: none;
+  border: 1px solid var(--cizgi);
+  padding: 0;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color .12s;
+}
+#manken-liste .mkart:hover { border-color: var(--cizgi-koyu); }
+#manken-liste .mkart.aktif {
+  border-color: var(--murekkep);
+  box-shadow: inset 0 0 0 1px var(--murekkep);
+}
+#manken-liste .mkart img {
+  width: 100%;
+  aspect-ratio: 864 / 1296;
+  object-fit: cover;
+  object-position: top center;
+  display: block;
+  background: var(--kagit);
+}
+#manken-liste .mkart .ad {
+  display: block;
+  font: 400 9.5px/1.4 var(--sans);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--alt);
+  padding: 3px 3px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#manken-liste .mkart.aktif .ad { color: var(--murekkep); }
+#manken-liste .mkart .sayi {
+  display: block;
+  font: italic 400 10px/1.4 var(--serif);
+  color: var(--alt);
+  padding: 0 3px 4px;
+}
+/* Katmanı olmayan manken GİZLENMİYOR, işaretleniyor — kıyafet kartlarındaki
+   "katman yok" rozetiyle aynı ilke: kullanıcı mankeni eklediğini biliyor,
+   listeden düşmesi hata gibi görünür. */
+#manken-liste .mkart.bos .sayi { color: var(--uyari); }
+#manken-liste .mkart .sil {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  border: none;
+  background: rgba(255, 255, 255, .85);
+  color: var(--alt);
+  font: 600 11px/1 var(--sans);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .12s;
+}
+#manken-liste .mkart:hover .sil { opacity: 1; }
+#manken-liste .mkart .sil:hover { color: var(--hata); }
+#manken-liste .yeni {
+  flex: 0 0 auto;
+  width: 74px;
+  border: 1px dashed var(--cizgi-koyu);
+  background: none;
+  cursor: pointer;
+  font: 400 10px/1.4 var(--sans);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--alt);
+  padding: 4px;
+  transition: border-color .12s, color .12s;
+}
+#manken-liste .yeni:hover { border-color: var(--murekkep); color: var(--murekkep); }
+#manken-not { margin: 6px 0 0; text-align: center; }
+
+/* --- Film şeridi --- */
+#serit {
+  display: flex;
+  gap: 9px;
+  overflow-x: auto;
+  width: 100%;
+  max-width: 560px;
+  margin-top: 12px;
+  padding-bottom: 4px;
+}
+#serit .kare {
+  flex: 0 0 auto;
+  width: 62px;
+  background: none;
+  border: 1px solid var(--cizgi);
+  padding: 0;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color .12s;
+}
+#serit .kare:hover { border-color: var(--cizgi-koyu); }
+#serit .kare.aktif {
+  border-color: var(--murekkep);
+  box-shadow: inset 0 0 0 1px var(--murekkep);
+}
+#serit .kare img {
+  width: 100%;
+  aspect-ratio: 864 / 1296;
+  object-fit: cover;
+  object-position: top center;
+  display: block;
+  background: var(--kagit);
+}
+#serit .kare .etiket {
+  display: block;
+  font: 400 9.5px/1.5 var(--sans);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--alt);
+  padding: 3px 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#serit .kare.aktif .etiket { color: var(--murekkep); }
+
+/* --- Yükleme --- */
+#yukle-alan {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border: 1px dashed var(--cizgi-koyu);
+  padding: 15px;
+  text-align: center;
+  cursor: pointer;
+  margin-bottom: 10px;
+  transition: border-color .12s, background .12s;
+}
+#yukle-alan:hover, #yukle-alan.uzerinde {
+  border-color: var(--murekkep);
+  background: var(--panel-2);
+}
+#yukle-alan strong {
+  font: 600 11px/1 var(--sans);
+  text-transform: uppercase;
+  letter-spacing: .14em;
+}
+#yukle-alan .alt { margin: 0; }
+
+#sablon {
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--cizgi);
+  border-radius: 0;
+  padding: 8px 10px;
+  color: var(--murekkep);
+  font: inherit;
+  margin-bottom: 10px;
+}
+#sablon:focus { outline: none; border-color: var(--murekkep); }
+
+/* --- Hizalama kontrolü --- */
+#hizalama, #sonuc { margin-bottom: 12px; }
+
+.onizleme {
+  position: relative;
+  overflow: hidden;
+  background: #efeee9;
+  border: 1px solid var(--cizgi);
+  touch-action: none;
+}
+.onizleme img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+.onizleme.kirpik img { object-fit: contain; background: #fff; }
+.onizleme svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.onizleme polygon {
+  fill: rgba(22, 21, 26, .07);
+  stroke: var(--murekkep);
+  stroke-width: .6;
+  stroke-dasharray: 2 1.4;
+  vector-effect: non-scaling-stroke;
+}
+#hizalama-tuval { cursor: grab; }
+#hizalama-tuval.suruklerken { cursor: grabbing; }
+
+.hiz-kontrol { display: flex; flex-direction: column; gap: 9px; margin-top: 10px; }
+
+.dpad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-areas: ". yukari ." "sol sifirla sag" ". asagi .";
+  gap: 4px;
+  max-width: 156px;
+  margin: 0 auto;
+}
+.dpad button {
+  padding: 7px 0;
+  font-size: 15px;
+  line-height: 1;
+  background: var(--panel);
+  color: var(--murekkep);
+  border: 1px solid var(--cizgi);
+}
+.dpad button:hover { border-color: var(--murekkep); }
+.dpad button:nth-child(1) { grid-area: yukari; }
+.dpad button:nth-child(2) { grid-area: sol; }
+.dpad button:nth-child(3) { grid-area: sifirla; }
+.dpad button:nth-child(4) { grid-area: sag; }
+.dpad button:nth-child(5) { grid-area: asagi; }
+
+.kaydir {
+  display: grid;
+  grid-template-columns: 54px 1fr 46px;
+  align-items: center;
+  gap: 9px;
+  font: italic 400 12px/1 var(--serif);
+  color: var(--alt);
+}
+.kaydir input[type=range] { width: 100%; accent-color: var(--murekkep); }
+.kaydir output {
+  text-align: right;
+  font: 400 12px/1 var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Düzenleme sohbeti --- */
+.rozet-yeni {
+  font: 600 9px/1.5 var(--sans);
+  letter-spacing: .1em;
+  color: var(--panel);
+  background: var(--murekkep);
+  padding: 1px 6px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.kaynak-sec { display: flex; gap: 7px; margin-bottom: 11px; }
+.kaynak-sec button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--panel);
+  color: var(--murekkep);
+  border: 1px solid var(--cizgi);
+  padding: 7px 9px;
+  font: 600 11.5px/1.25 var(--sans);
+  text-align: left;
+}
+.kaynak-sec button .alt { font-size: 10.5px; margin: 0; }
+.kaynak-sec button:hover { border-color: var(--cizgi-koyu); }
+.kaynak-sec button.secili {
+  border-color: var(--murekkep);
+  box-shadow: inset 0 0 0 1px var(--murekkep);
+}
+
+#duzenle-metin:disabled { opacity: .45; cursor: not-allowed; }
+#duzenle-gecmis { max-height: 168px; overflow-y: auto; }
+#duzenle-gecmis .satir {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: var(--panel-2);
+  border-left: 2px solid var(--cizgi);
+  padding: 6px 9px;
+  margin-bottom: 5px;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: border-color .12s;
+}
+#duzenle-gecmis .satir:hover { border-left-color: var(--cizgi-koyu); }
+#duzenle-gecmis .satir.aktif { border-left-color: var(--murekkep); }
+#duzenle-gecmis .sira {
+  color: var(--alt);
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+}
+#duzenle-gecmis .metin { flex: 1; min-width: 0; word-break: break-word; }
+
+.oneriler { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.oneriler button {
+  background: var(--panel);
+  color: var(--murekkep);
+  border: 1px solid var(--cizgi);
+  padding: 4px 10px;
+  font: italic 400 12px/1.35 var(--serif);
+}
+.oneriler button:hover { border-color: var(--murekkep); }
+
+#duzenle-metin {
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--cizgi);
+  padding: 9px 10px;
+  color: var(--murekkep);
+  font: inherit;
+  resize: vertical;
+}
+#duzenle-metin:focus { outline: none; border-color: var(--murekkep); }
+
+.ikili { display: flex; gap: 8px; }
+.ikili button { flex: 1; }
+
+/* --- Durum metinleri --- */
+#yukle-durum:empty { display: none; }
+#yukle-durum.calisiyor, #render-bilgi.calisiyor, #duzenle-bilgi.calisiyor {
+  color: var(--murekkep);
+}
+#yukle-durum.uyari { color: var(--uyari); }
+#yukle-durum.hata, #render-bilgi.hata, #duzenle-bilgi.hata { color: var(--hata); }
+
+#render-img { z-index: 500; }
+
+/* --- Kombin --- */
+.bos {
+  color: var(--alt);
+  font: italic 400 13px/1.5 var(--serif);
+  padding: 7px 0;
+}
+
+.secim {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--cizgi);
+  padding: 8px 2px;
+}
+.secim img {
+  width: 36px; height: 36px;
+  object-fit: contain;
+  background: #fff;
+  mix-blend-mode: multiply;
+}
+.secim .bilgi { flex: 1; min-width: 0; }
+.secim .bilgi div:first-child { font-size: 13px; }
+.secim .bilgi div:last-child {
+  font: italic 400 11.5px/1.4 var(--serif);
+  color: var(--alt);
+}
+.secim button {
+  background: none; border: none; color: var(--alt);
+  cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 4px;
+}
+.secim button:hover { color: var(--hata); }
+
+.aksiyon { display: flex; flex-direction: column; gap: 9px; margin-top: 13px; }
+
+input[type=text] {
+  background: var(--panel);
+  border: 1px solid var(--cizgi);
+  padding: 9px 10px;
+  color: var(--murekkep);
+  font: inherit;
+}
+input[type=text]:focus { outline: none; border-color: var(--murekkep); }
+input[type=text]::placeholder { font: italic 400 13px var(--serif); color: var(--alt); }
+
+/* Düğmeler: dolu siyah = birincil, çerçeveli = ikincil. Keskin köşe,
+   seyrek harf — dergi künyesi hissi. */
+button {
+  background: var(--murekkep);
+  color: var(--kagit);
+  border: 1px solid var(--murekkep);
+  border-radius: 0;
+  padding: 10px 13px;
+  font: 600 11px/1.2 var(--sans);
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+button:hover:not(:disabled) { background: #2e2c33; }
+/* Kapalı düğme soluk olmalı ki "şu an yapılamaz" desin — ama ne yaptığı da
+   okunabilmeli. 0.32'de metin seçilemiyordu; 0.45 hem sinyali koruyor hem
+   etiketi okutuyor. (Kapalı kontroller WCAG kontrast şartından muaf, o yüzden
+   burada ölçüt erişilebilirlik değil kullanılabilirlik.) */
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.ikincil {
+  background: transparent;
+  color: var(--murekkep);
+  border-color: var(--cizgi-koyu);
+}
+button.ikincil:hover:not(:disabled) { background: var(--panel-2); border-color: var(--murekkep); }
+
+/* Öneri çipleri ve d-pad küçük harf kalsın — künye sesi orada fazla olur. */
+.oneriler button, .dpad button, .kaynak-sec button, .secim button {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.kayit {
+  background: var(--panel);
+  border-bottom: 1px solid var(--cizgi);
+  padding: 9px 2px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.kayit:hover { background: var(--panel-2); }
+.kayit .bilgi { flex: 1; min-width: 0; }
+.kayit .bilgi div:first-child { font-size: 13px; }
+.kayit .bilgi div:last-child {
+  font: italic 400 11.5px/1.4 var(--serif);
+  color: var(--alt);
+}
+.kayit button { padding: 4px 8px; font-size: 13px; }
+
+/* Dar ekranda yan paneller ÖNCE geri çekiliyor, manken en son.
+ *
+ * Ölçüldü: sabit 360/400 sütunlarla 1280 px ekranda manken 495 → 375 px'e
+ * düşüyordu. Ürünün kendisi katalog sayfasının en önemli ögesi; daralması
+ * gereken şey panel, manken değil. */
+@media (max-width: 1500px) {
+  main { grid-template-columns: 320px minmax(320px, 1fr) 350px; gap: 22px; }
+}
+
+@media (max-width: 1200px) {
+  main { grid-template-columns: 288px minmax(300px, 1fr) 312px; gap: 18px; }
+}
+
+@media (max-width: 1000px) {
+  main { grid-template-columns: 1fr; gap: 16px; padding: 16px; }
+  #dolap-panel { max-height: none; }
+  header { padding: 20px 16px 15px; }
+  header h1 { font-size: 22px; }
+}

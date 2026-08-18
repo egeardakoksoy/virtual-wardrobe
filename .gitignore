@@ -1,0 +1,37 @@
+# Sırlar
+.env
+
+# Kullanıcı verisi ve üretilen görseller (repoya girmez)
+data/
+!data/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+venv/
+.venv/
+.pytest_cache/
+.coverage
+
+# Editör / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Kişisel fotoğraflar — repo public olacağı için girmez
+Boydan foto/
+Clothes/
+/*.jpeg
+kalibrasyon.npy
+
+# Yedekler
+data_yedek_*/
+
+# Deney çıktıları (ölçümleri HANDOFF.md'de, görselleri gerekmiyor)
+/ab_12_*.png
+/layerab_*.png
+
+# Claude Code yerel ayarları
+.claude/settings.local.json

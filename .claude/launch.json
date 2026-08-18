@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "wardrobe-web",
+      "runtimeExecutable": "C:\\Users\\egear\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\\python.exe",
+      "runtimeArgs": ["cli.py", "web", "--host", "0.0.0.0", "--port", "8000"],
+      "port": 8000,
+      "url": "http://localhost:8000"
+    }
+  ]
+}
