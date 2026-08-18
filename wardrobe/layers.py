@@ -623,9 +623,26 @@ def restore_extract_color(
     return Image.fromarray(karisim.astype(np.uint8), mode="RGB")
 
 
+# Dönüşümün ALGORİTMA sürümü — önbellek anahtarının parçası.
+#
+# NEDEN VAR: önbellek yalnızca KAYNAK dosyaların tarihine bakarsa, kod
+# değiştiğinde çıktı değişir ama önbellek bunu göremez — kaynaklar aynı.
+# Ölçüldü, tam olarak bu oldu: saçak genişletmesi eklendiğinde diskteki
+# kopyayı elle silmek gerekti, ve tarayıcı tarafında URL damgası da
+# değişmediği için kullanıcı YEŞİL görüntüyü görmeye devam etti (§25.7'nin
+# üçüncü tekrarı).
+#
+# `restore_extract_color`ın çıktısını gözle görülür biçimde değiştiren her
+# düzenlemede ARTIR. Sürüm dosya adında olduğu için eski kopyalar kendiliğinden
+# devre dışı kalıyor, ve `_ham_rev` bunu damgaya kattığı için tarayıcı da
+# ilk yenilemede yeni görüntüyü çekiyor.
+RESTORE_VERSION = 1
+
+
 def display_raw_path(garment_id: int, mannequin_id: int) -> Path:
     """`restore_extract_color` uygulanmış ham çıktının önbellek yolu."""
-    return LAYER_DIR / f"g{garment_id}_m{mannequin_id}_raw_display.png"
+    return (LAYER_DIR /
+            f"g{garment_id}_m{mannequin_id}_raw_display_v{RESTORE_VERSION}.png")
 
 
 def dressed_for_display(

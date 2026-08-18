@@ -180,17 +180,28 @@ def _ham_yol(garment_id: int):
 
 
 def _ham_rev(garment_id: int) -> int:
-    """Ham çıktının sürüm damgası — çıkarım base'i de hesaba katılıyor.
+    """Tek-kıyafet görünümünün önbellek damgası.
 
-    Kullanıcıya gösterilen görüntü (`dressed_for_display`) İKİ dosyadan
-    türüyor: ham çıktı ve çıkarım base'i. Damgayı yalnızca ham çıktıya
-    bağlamak, çıkarım base'i yenilendiğinde URL'i değiştirmez ve tarayıcı
-    bayat görüntüyü bellekten servis ederdi — §25.7'de tam olarak bu olmuştu.
+    ⚠ Bu bir TARİH DEĞİL, opak bir sürüm sayısı. Gösterilen görüntü ÜÇ şeyden
+    türüyor ve üçü de damgaya girmek zorunda:
+
+      1. ham VTON çıktısı      → katman yenilenince değişir
+      2. çıkarım base'i        → yeşil base yenilenince değişir
+      3. dönüşümün ALGORİTMASI → kod değişince değişir
+
+    Üçüncüsü ilk sürümde atlanmıştı ve masrafı ölçüldü: sunucudaki dosya
+    düzeltilmişti ama ham çıktı çıkarım base'inden yeni olduğu için
+    `max()` eski değerin aynısını üretti, URL değişmedi ve tarayıcı YEŞİL
+    görüntüyü belleğinden servis etmeye devam etti. Kullanıcı "düzelmedi"
+    diye bildirdi; kod doğruydu, damga yanlıştı (§25.7'nin üçüncü tekrarı).
     """
+    from wardrobe.layers import RESTORE_VERSION
+
     ham = _rev(str(_ham_yol(garment_id)))
     if not ham:
         return 0          # ham çıktı yok: istemci bindirmeye düşsün
-    return max(ham, _rev(str(mannequin.extract_base_path(mannequin.active_id()))))
+    ext = _rev(str(mannequin.extract_base_path(mannequin.active_id())))
+    return max(ham, ext) + RESTORE_VERSION
 
 
 def _manken_ozet() -> dict:

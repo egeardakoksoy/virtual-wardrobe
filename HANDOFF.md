@@ -3639,3 +3639,39 @@ değiştirmez ve tarayıcı bayat görüntü servis ederdi (§25.7).
 > görünen kararları geçersizleştirebilir. §44 kör noktayı kapattı ama §38'in
 > dayandığı "ham çıktı gösterilebilir" varsayımını sessizce yıktı. Değişiklik
 > sonrası "bu kararın dayanağı hâlâ duruyor mu?" diye taranmalı.
+
+### 46.5 ⚠ Düzeltme ÇALIŞMIYOR göründü — kod doğruydu, DAMGA yanlıştı
+
+Kullanıcı sunucuyu yeniden başlattı ve "sadece pantolon giydirince çalışıyor,
+üst giydirince altlarda çalışmıyor" diye bildirdi. Kod tarafında böyle bir
+ayrım yok — ve gerçekten de yoktu.
+
+Sunucudaki dosyalar doğruydu (#14 yeşil=0, #10=2, #16=20). Sorun URL damgasıydı:
+
+```
+damga = max(ham_mtime, cikarim_mtime)
+ham çıktı  18:01   >   çıkarım base'i  17:53   →   max = ham_mtime
+```
+
+yani damga **düzeltme öncesiyle birebir aynı sayı** çıkıyordu. `?v=` değişmeyince
+tarayıcı eski YEŞİL görüntüyü belleğinden servis etti. "Pantolonda çalışıyor,
+üstte çalışmıyor" bir kod farkı değil, hangi görselin tarayıcı önbelleğinde
+kaldığıyla ilgili şanstı.
+
+**Kök sebep:** damga yalnızca KAYNAK dosyaları izliyordu, ama gösterilen görüntü
+üç şeyden türüyor — ham çıktı, çıkarım base'i ve **dönüşümün algoritması**.
+Üçüncüsü atlanmıştı. Aynı açık diskteki önbellekte de vardı: saçak genişletmesi
+eklendiğinde kopyaları elle silmek gerekmişti (o an fark edilmedi).
+
+**Düzeltme:** `layers.RESTORE_VERSION` eklendi. Sürüm hem önbellek dosya adında
+(`g14_m139_raw_display_v1.png` — eski kopyalar kendiliğinden devre dışı) hem de
+damgada. Doğrulandı: damga 1787065294 → 1787065295.
+
+İki testi var: sürüm artınca damga değişmeli, ve sürüm dosya adında olmalı.
+
+373 test geçiyor.
+
+> **Ders:** bir önbellek anahtarı, çıktıyı belirleyen HER girdiyi içermeli —
+> kodun kendisi de bir girdidir. "Kaynak dosya değişmediyse çıktı da
+> değişmemiştir" varsayımı, dönüşümü siz değiştirdiğinizde bozuluyor.
+> Ve bu hata sinsi: sunucu doğru, testler yeşil, kullanıcı yanlış görüyor.

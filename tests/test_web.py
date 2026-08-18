@@ -463,3 +463,43 @@ def test_zemin_notrlenmemis_hali_de_servis_ediliyor(client, db_path, tmp_path):
 
     assert client.get("/api/base_raw.png").status_code == 200
     assert client.get("/api/wardrobe").json()["base_raw_rev"] > 0
+
+
+def test_tek_kiyafet_damgasi_algoritma_surumunu_de_iceriyor(
+        db_path, tmp_path, monkeypatch):
+    """Önbellek damgası ALGORİTMA değişince de değişmeli.
+
+    Gerçek bir hata bu testi doğurdu. Damga önce `max(ham, çıkarım)` idi;
+    ham çıktı çıkarım base'inden yeni olduğu için sonuç, düzeltme öncesiyle
+    BİREBİR aynı sayı çıktı. Sunucudaki dosya düzeltilmişti ama URL
+    değişmediği için tarayıcı eski YEŞİL görüntüyü belleğinden servis etti ve
+    kullanıcı "düzelmedi" diye bildirdi.
+
+    Yani damganın kaynak dosyaları takip etmesi YETMİYOR: gösterilen görüntü
+    koda da bağlı (§25.7'nin üçüncü tekrarı).
+    """
+    from web import app as web_app
+
+    # `_ham_rev` aktif mankeni VARSAYILAN yoldan okuyor (sunucu öyle çalışıyor).
+    monkeypatch.setattr("db.DB_PATH", db_path)
+
+    Image.new("RGB", (200, 400), (180, 180, 185)).save(tmp_path / "m.png")
+    mannequin.from_photo(tmp_path / "m.png", db_path=db_path)
+    mid = mannequin.active_id(db_path=db_path)
+    Image.new("RGB", (200, 400), (60, 60, 60)).save(layers.raw_path(3, mid))
+
+    damga = web_app._ham_rev(3)
+    assert damga > 0
+
+    # Sürüm artınca damga DEĞİŞMELİ — kaynak dosyalara hiç dokunulmadan.
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr("wardrobe.layers.RESTORE_VERSION", layers.RESTORE_VERSION + 1)
+        assert web_app._ham_rev(3) != damga, (
+            "algoritma sürümü damgaya girmiyor — tarayıcı bayat görüntü servis eder")
+
+
+def test_gosterim_onbellegi_surum_adini_tasiyor():
+    """Sürüm dosya adında olmalı ki eski kopyalar kendiliğinden devre dışı kalsın."""
+    yol = layers.display_raw_path(5, 9)
+    assert f"v{layers.RESTORE_VERSION}" in yol.name, yol.name
+    assert "g5_m9" in yol.name, yol.name
