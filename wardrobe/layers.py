@@ -533,6 +533,142 @@ def drop_extract_color(keep, rgb, extract_palette, garment_palette_):
     out[keep] = ~yakin
     return out if out.any() else keep
 
+
+# Yeşilin gerçek fotoğrafla değiştirildiği yerde kenarın yumuşatılma yarıçapı.
+# Sert bir ikili maske, kıyafetin kenarında testere dişi bırakıyor: yeşil ile
+# kıyafet arasındaki ara piksel ikisinin karışımı ve hiçbir tarafa tam ait
+# değil. Küçük bir geçiş bandı bunu görünmez yapıyor.
+EXTRACT_RESTORE_FEATHER = 1.5
+
+# Maskenin değiştirmeden ÖNCE genişletileceği yarıçap.
+#
+# Eşiğin tam kendisi yetmiyor: yeşil bölgenin dış sınırındaki anti-alias
+# pikselleri yeşille komşusunun karışımı olduğu için palete uzaklıkları eşiğin
+# ÜSTÜNDE kalıyor ve yerinde duruyorlar. Ekranda bu, kıyafetin çevresini saran
+# ince neon bir kontur olarak görünüyordu.
+#
+# Ölçüldü (palete BAKMAYAN ölçüt — yeşil kanalın diğer ikisini 20'den fazla
+# geçmesi; gerçek fotoğrafta bu sayı 0):
+#
+#   genişletme   #14      #16      #10     kaplama (#14)
+#        0      1.267    1.390    1.369       42.760
+#        2         94       27       82       46.541
+#        3          0       20        2       48.453
+#
+# 3 seçildi: sayıda tabana iniyor, gözle kontur tamamen kayboluyor ve kıyafetin
+# kenarı yenmiyor (bel hizasında yakın planla doğrulandı). Bedeli %13 daha
+# fazla piksel — hepsi zaten gerçek fotoğraftan geldiği için görsel maliyeti yok.
+EXTRACT_RESTORE_DILATE = 3
+
+
+def restore_extract_color(
+    dressed: Image.Image,
+    real_base: Image.Image,
+    extract_base: Image.Image,
+    garment_palette_: np.ndarray | None = None,
+) -> Image.Image:
+    """Ham VTON çıktısındaki sentetik çıkarım rengini GERÇEK fotoğrafla değiştirir.
+
+    NEDEN GEREKLİ: §38'de tek kıyafet seçiliyken ham VTON çıktısı gösteriliyor
+    — katman bindirmesinin çıkarım kusurlarını taşımadığı için doğru karar. Ama
+    §44'te çıkarım base'inin kıyafeti chroma yeşile boyandı ve ham çıktı ARTIK
+    O BASE'E karşı üretiliyor. Sonuç: kıyafetin örtmediği her yerde kullanıcı
+    yeşil görüyor (üst giydirilince şort, alt giydirilince tişört).
+
+    `drop_extract_color`'ın simetriği: o, yeşili KATMANDAN siliyor; bu, yeşili
+    ham çıktıda gerçek fotoğrafla DOLDURUYOR. İkisinin de dayandığı güvence
+    aynı — aranan renk gerçek değil, biz koyduk.
+
+    Değiştirme piksel piksel yapılabiliyor çünkü iki görüntünün geometrisi
+    birebir aynı: çıkarım base'i gerçek fotoğrafın yalnızca yeniden
+    renklendirilmiş hâli, poz ve kadraj değişmedi (§44.1).
+
+    Güvenlik kuralı `drop_extract_color`'la aynı: kıyafetin kendi paleti
+    çıkarım rengine yakınsa (gerçekten neon yeşil bir kıyafet) hiç dokunulmuyor,
+    yoksa kıyafetin kendisi silinirdi.
+    """
+    if dressed.size != real_base.size:
+        dressed = dressed.resize(real_base.size, Image.LANCZOS)
+    if extract_base.size != real_base.size:
+        extract_base = extract_base.resize(real_base.size, Image.LANCZOS)
+
+    d_rgb = np.asarray(dressed.convert("RGB"))
+    r_rgb = np.asarray(real_base.convert("RGB"))
+    pal = base_clothing_palette(np.asarray(extract_base.convert("RGB")))
+    if pal is None or not len(pal):
+        return dressed
+
+    pal = np.asarray(pal, dtype=np.float32)
+    if garment_palette_ is not None and len(garment_palette_):
+        gp = np.asarray(garment_palette_, dtype=np.float32)
+        en_yakin = float(rgb_distance(pal[:, None, :], gp[None, :, :]).min())
+        if en_yakin < EXTRACT_COLOR_TOLERANCE * EXTRACT_COLOR_SAFE:
+            return dressed          # kıyafet o renge yakın — dokunma
+
+    h, w = d_rgb.shape[:2]
+    mesafe = rgb_distance(
+        d_rgb.reshape(-1, 1, 3).astype(np.float32), pal[None, :, :]
+    ).min(axis=1).reshape(h, w)
+    yesil = mesafe < EXTRACT_COLOR_TOLERANCE
+    if not yesil.any():
+        return dressed
+
+    alfa = Image.fromarray((yesil * 255).astype(np.uint8), mode="L")
+    if EXTRACT_RESTORE_DILATE > 0:
+        alfa = alfa.filter(ImageFilter.MaxFilter(2 * EXTRACT_RESTORE_DILATE + 1))
+    if EXTRACT_RESTORE_FEATHER > 0:
+        alfa = alfa.filter(ImageFilter.GaussianBlur(EXTRACT_RESTORE_FEATHER))
+    a = (np.asarray(alfa, dtype=np.float32) / 255.0)[:, :, None]
+    karisim = (d_rgb * (1.0 - a) + r_rgb * a).round().clip(0, 255)
+    return Image.fromarray(karisim.astype(np.uint8), mode="RGB")
+
+
+def display_raw_path(garment_id: int, mannequin_id: int) -> Path:
+    """`restore_extract_color` uygulanmış ham çıktının önbellek yolu."""
+    return LAYER_DIR / f"g{garment_id}_m{mannequin_id}_raw_display.png"
+
+
+def dressed_for_display(
+    garment_id: int, mannequin_id: int, db_path=None
+) -> Path | None:
+    """Tek kıyafet seçiliyken KULLANICIYA gösterilecek ham çıktının yolu.
+
+    Çıkarım base'i yoksa ham çıktının kendisi dönüyor — yani yeşil base
+    kullanmayan bir mankende bu özellik hiç devreye girmiyor ve davranış
+    eskisiyle birebir aynı kalıyor.
+
+    Sonuç diske önbellekleniyor: dönüşüm saniyenin altında ama her sahne
+    değişiminde yeniden hesaplamanın anlamı yok. Önbellek, kaynaklarından
+    (ham çıktı ve çıkarım base'i) eskiyse yeniden üretiliyor — §25.7'nin
+    dersi: bayat önbellek, olmayan önbellekten kötüdür.
+    """
+    ham = raw_path(garment_id, mannequin_id)
+    if not ham.is_file():
+        return None
+
+    cikarim = mannequin.extract_base_path(mannequin_id, db_path)
+    gercek = mannequin.photo_path(mannequin_id, db_path)
+    if not cikarim.is_file() or gercek is None:
+        return ham
+
+    onbellek = display_raw_path(garment_id, mannequin_id)
+    kaynak_zamani = max(ham.stat().st_mtime, cikarim.stat().st_mtime)
+    if onbellek.is_file() and onbellek.stat().st_mtime >= kaynak_zamani:
+        return onbellek
+
+    garment = get_garment(garment_id, db_path=db_path)
+    pal = None
+    if garment and garment["cutout_path"] and Path(garment["cutout_path"]).is_file():
+        pal = garment_palette(garment["cutout_path"], colors=4)
+
+    sonuc = restore_extract_color(
+        load_any(ham), load_any(gercek), load_any(cikarim), pal
+    )
+    onbellek.parent.mkdir(parents=True, exist_ok=True)
+    sonuc.save(onbellek)
+    return onbellek
+
+
 def drop_base_clothing(
     mask: np.ndarray,
     dressed_rgb: np.ndarray,

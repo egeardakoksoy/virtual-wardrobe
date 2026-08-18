@@ -93,6 +93,21 @@ def image_path_for(mannequin_id: int, name: str = "") -> Path:
     return MANNEQUIN_DIR / f"base_{mannequin_id}.png"
 
 
+def photo_path(mannequin_id: int | None = None, db_path=None) -> Path | None:
+    """Mankenin GERÇEK fotoğrafı — boyanmamış, nötrlenmemiş hâli.
+
+    Üç base'in (gerçek / çıkarım / gösterim) diğer ikisinin yol erişimcisi
+    zaten vardı; bu, üçüncüsünü de aynı hizaya getiriyor. Dosya yoksa None
+    dönüyor, çünkü çağıranların hepsi "gerçek fotoğraf yoksa eski davranışa
+    dön" diyebilmek istiyor — kayıt varken dosyanın silinmiş olması mümkün.
+    """
+    row = _row(mannequin_id, db_path)
+    if not row or not row["image_path"]:
+        return None
+    yol = Path(row["image_path"])
+    return yol if yol.is_file() else None
+
+
 def display_base_path(mannequin_id: int | None = None, db_path=None) -> Path:
     """Gösterim base'inin yolu — SABİT DEĞİL, çağrı anında çözülür.
 

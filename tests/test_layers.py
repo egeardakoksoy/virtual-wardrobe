@@ -679,3 +679,148 @@ def test_yesil_kiyafette_filtre_kendini_durduruyor():
 
     out = layers.drop_extract_color(keep, rgb, yesil_palet, yesil_kiyafet)
     assert out.all(), "yeşil kıyafette filtre kendini durdurmadı"
+
+
+# --- Ham çıktının gösterime hazırlanması (§44'ün görünür yüzü) ---
+
+def _uc_katmanli_sahne(kiyafet, ust=None, w=200, h=400):
+    """Kıyafet bandı `base_clothing_palette`ın örneklediği kutuları kapsıyor."""
+    a = np.full((h, w, 3), 235, dtype=np.uint8)
+    a[120:320, 60:140] = kiyafet
+    if ust is not None:
+        a[120:220, 60:140] = ust
+    return Image.fromarray(a)
+
+
+def test_ham_ciktidaki_cikarim_rengi_gercek_fotoyla_degisiyor():
+    """Tek kıyafet görünümünde kullanıcı YEŞİL GÖRMEMELİ.
+
+    §38 tek kıyafette ham VTON çıktısını gösteriyor — katman bindirmesinin
+    çıkarım kusurlarını taşımadığı için doğru karar. Ama §44'ten sonra ham
+    çıktı YEŞİL çıkarım base'ine karşı üretiliyor, yani kıyafetin örtmediği
+    her yerde base'in boyanmış kıyafeti duruyor: üst giydirilince şort,
+    alt giydirilince tişört yeşil çıkıyordu.
+
+    Geometri birebir aynı olduğu için (çıkarım base'i gerçek fotoğrafın
+    yalnızca yeniden renklendirilmiş hâli) düzeltme piksel piksel yapılabiliyor.
+    """
+    extract = _uc_katmanli_sahne((20, 150, 20))                 # boyanmış base
+    gercek = _uc_katmanli_sahne((180, 40, 40))                  # gerçek fotoğraf
+    ham = _uc_katmanli_sahne((20, 150, 20), (30, 40, 120))      # VTON: üste mavi
+
+    out = np.asarray(layers.restore_extract_color(
+        ham, gercek, extract, np.array([[30, 40, 120]], dtype=np.int16)))
+
+    alt = out[280, 100]
+    assert int(alt[0]) > 140 and int(alt[1]) < 80, (
+        f"yeşil gerçek fotoğrafla değişmedi: {alt}")
+    ust_px = out[160, 100]
+    assert int(ust_px[2]) > 95 and int(ust_px[0]) < 70, (
+        f"giydirilen kıyafet bozuldu: {ust_px}")
+
+
+def test_geri_yukleme_yesil_kiyafette_kendini_durduruyor():
+    """Gerçekten yeşil bir kıyafet gelirse hiç dokunulmamalı.
+
+    `drop_extract_color`'daki güvenlik kuralının aynısı: aksi halde kıyafetin
+    kendisi gerçek fotoğrafla silinirdi.
+    """
+    extract = _uc_katmanli_sahne((20, 150, 20))
+    gercek = _uc_katmanli_sahne((180, 40, 40))
+    ham = _uc_katmanli_sahne((20, 150, 20))
+
+    out = layers.restore_extract_color(
+        ham, gercek, extract, np.array([[25, 155, 25]], dtype=np.int16))
+
+    assert np.array_equal(np.asarray(out), np.asarray(ham)), (
+        "yeşil kıyafette geri yükleme kendini durdurmadı")
+
+
+def test_kenardaki_anti_alias_sacagi_da_temizleniyor():
+    """Eşiğin tam kendisi yetmiyor — saçak genişletme ile kapanıyor.
+
+    Yeşil bölgenin dış sınırındaki pikseller yeşille komşusunun karışımı
+    olduğu için palete uzaklıkları eşiğin ÜSTÜNDE kalıyor ve yerinde
+    duruyorlardı; ekranda kıyafeti saran ince neon bir kontur olarak
+    görünüyordu. Ölçüldü: genişletmesiz 1.267 px, 3 px genişletmeyle 0.
+    """
+    def _yesillik(a):
+        """Palete BAKMAYAN ölçüt: yeşil kanal diğer ikisini ne kadar geçiyor.
+
+        Filtrenin kendi eşiğiyle ölçmek dairesel olurdu — 78 ile silip 78 ile
+        ölçmek her zaman 0 verir (§34.1'in hatası). Bu ölçüt bağımsız.
+        """
+        b = a[118:120, 60:140].astype(int)
+        return int((b[:, :, 1] - np.maximum(b[:, :, 0], b[:, :, 2])).max())
+
+    extract = _uc_katmanli_sahne((20, 150, 20))
+    gercek = _uc_katmanli_sahne((180, 40, 40))
+    ham = np.asarray(_uc_katmanli_sahne((20, 150, 20))).copy()
+    # Sınırdaki ara ton: yeşille duvarın karışımı, eşiğin DIŞINDA kalır.
+    ham[118:120, 60:140] = (128, 193, 128)
+    assert _yesillik(ham) == 65, "deney kurulumu bozuk"
+
+    out = np.asarray(layers.restore_extract_color(
+        Image.fromarray(ham), gercek, extract,
+        np.array([[30, 40, 120]], dtype=np.int16)))
+
+    # Tam 0 beklenmiyor: yumuşatma rampası sınırda alfayı 1.0'a çıkarmıyor,
+    # orijinalden bir miktar kalıyor (65 → 11).
+    #
+    # Eşik 20, gerçek görüntülerdeki ölçümden geliyor: aynı ölçütle mankenin
+    # GERÇEK fotoğrafında 20'yi aşan piksel sayısı 0, düzeltilmiş ham
+    # çıktılarda 42.246→0, 72.556→20, 41.037→2. Yani 20'nin altı "gözle
+    # yeşil değil" demek — üç görüntüde de yakın planla doğrulandı.
+    assert _yesillik(out) < 20, f"anti-alias saçağı temizlenmedi: {_yesillik(out)}"
+
+
+def test_cikarim_basei_yoksa_ham_cikti_aynen_donuyor(db_path, tmp_path):
+    """Yeşil base kullanmayan mankende davranış eskisiyle birebir aynı."""
+    Image.new("RGB", (200, 400), (180, 180, 185)).save(tmp_path / "m.png")
+    mannequin.from_photo(tmp_path / "m.png", db_path=db_path)
+    mid = mannequin.active_id(db_path=db_path)
+
+    ham = layers.raw_path(7, mid)
+    Image.new("RGB", (200, 400), (60, 60, 60)).save(ham)
+
+    assert layers.dressed_for_display(7, mid, db_path=db_path) == ham
+
+
+def test_ham_cikti_yoksa_gosterim_none_donuyor(db_path, tmp_path):
+    """Ham çıktı yoksa istemci bindirmeye düşmeli — sessiz 500 değil."""
+    Image.new("RGB", (200, 400), (180, 180, 185)).save(tmp_path / "m.png")
+    mannequin.from_photo(tmp_path / "m.png", db_path=db_path)
+    mid = mannequin.active_id(db_path=db_path)
+
+    assert layers.dressed_for_display(99, mid, db_path=db_path) is None
+
+
+def test_gosterim_onbellegi_kaynak_yenilenince_tazeleniyor(db_path, tmp_path):
+    """Bayat önbellek, olmayan önbellekten kötüdür (§25.7).
+
+    Ham çıktı yenilenince gösterim kopyası da yeniden üretilmeli, yoksa
+    kullanıcı eski giydirmeyi görmeye devam eder.
+    """
+    import os
+
+    _uc_katmanli_sahne((180, 40, 40)).save(tmp_path / "m.png")
+    mannequin.from_photo(tmp_path / "m.png", db_path=db_path)
+    mid = mannequin.active_id(db_path=db_path)
+    _uc_katmanli_sahne((20, 150, 20)).save(
+        mannequin.extract_base_path(mid, db_path))
+
+    ham = layers.raw_path(7, mid)
+    _uc_katmanli_sahne((20, 150, 20), (30, 40, 120)).save(ham)
+
+    ilk = layers.dressed_for_display(7, mid, db_path=db_path)
+    assert ilk == layers.display_raw_path(7, mid), "önbelleğe yazılmadı"
+    ilk_icerik = np.asarray(Image.open(ilk).convert("RGB")).copy()
+
+    # Ham çıktı değişti: giydirilen bölge maviden sarıya döndü.
+    _uc_katmanli_sahne((20, 150, 20), (200, 190, 40)).save(ham)
+    os.utime(ham, (ilk.stat().st_mtime + 10, ilk.stat().st_mtime + 10))
+
+    yeni_icerik = np.asarray(Image.open(
+        layers.dressed_for_display(7, mid, db_path=db_path)).convert("RGB"))
+    assert not np.array_equal(ilk_icerik, yeni_icerik), (
+        "önbellek bayat kaldı — kaynak yenilendiği hâlde yeniden üretilmedi")

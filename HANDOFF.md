@@ -3559,3 +3559,83 @@ kendisi yanıldı (§34.5). Kullanıcının koyduğu kural kayda geçti:
 
 > **Bir ölçümün geçerliliği, ölçüldüğü koşulların hâlâ geçerli olmasına
 > bağlı.** Sağlayıcı, model ya da base değişince eski ölçüm yeniden yapılmalı.
+
+---
+
+## 46. Tek kıyafette ekranda YEŞİL görünüyordu ✅
+
+§44 çıkarım base'ini chroma yeşile boyadı ve kör noktayı kapattı. Ama §38'deki
+"tek kıyafette ham VTON çıktısını göster" kararı bununla birlikte sessizce
+bozuldu: **ham çıktı artık yeşil base'e karşı üretiliyor**, yani kıyafetin
+örtmediği her yer ekranda yeşil. Üst giydirilince şort, alt giydirilince
+tişört; ayrıca çenede ve ayak bileklerinde yeşil lekeler.
+
+İki karar tek tek doğruydu, birleşimleri yanlıştı — kimse ikisinin kesişimine
+bakmamıştı.
+
+### 46.1 Çözüm: yeşili gerçek fotoğrafla DOLDUR
+
+`layers.restore_extract_color()` — `drop_extract_color`'ın simetriği. O, yeşili
+katmandan siliyor; bu, ham çıktıda gerçek fotoğrafla değiştiriyor. Değiştirme
+piksel piksel yapılabiliyor çünkü çıkarım base'i gerçek fotoğrafın yalnızca
+yeniden renklendirilmiş hâli — poz ve kadraj birebir aynı (§44.1).
+
+Güvenlik kuralı aynı: kıyafetin kendi paleti çıkarım rengine yakınsa (gerçekten
+neon yeşil bir kıyafet) hiç dokunulmuyor.
+
+Çıkarım base'i olmayan mankende `dressed_for_display` ham çıktıyı olduğu gibi
+döndürüyor — yani bu özelliği kullanmayan kurulumda davranış birebir eskisi.
+
+### 46.2 ⚠ İLK ÖLÇÜMÜM DAİRESELDİ
+
+Tolerans 78 ile sildim, sonra **tolerans 78 ile ölçtüm** ve "0 yeşil piksel"
+raporladım. Ekranda ise yeşil kontur duruyordu. §34.1'in hatasının aynısı.
+
+Palete bakmayan bağımsız ölçüte geçildi — *yeşil kanal diğer ikisini 20'den
+fazla geçiyor mu*; mankenin gerçek fotoğrafında bu sayı **0**, yani ölçüt
+kalibre. Gerçek sayı ortaya çıktı: **1.267 px** kalıntı.
+
+Sebep: yeşil bölgenin dış sınırındaki anti-alias pikselleri yeşille komşusunun
+karışımı, o yüzden palete uzaklıkları eşiğin ÜSTÜNDE ve filtre onlara
+dokunmuyor. Ekranda kıyafeti saran ince neon kontur olarak görünüyordu.
+
+### 46.3 Maske genişletmesi — ölçülen takas
+
+| genişletme | #14 | #16 | #10 | kaplama (#14) |
+|---|---|---|---|---|
+| 0 | 1.267 | 1.390 | 1.369 | 42.760 |
+| 2 | 94 | 27 | 82 | 46.541 |
+| **3** | **0** | **20** | **2** | 48.453 |
+| 4 | 0 | 11 | 1 | 50.371 |
+
+3 seçildi: sayıda tabana iniyor, bel hizasına yakın planla bakıldığında kontur
+tamamen kayboluyor ve **kıyafetin kenarı yenmiyor**. Bedeli %13 daha fazla
+piksel — hepsi gerçek fotoğraftan geldiği için görsel maliyeti yok.
+
+Son durum (bağımsız ölçüt, gerçek fotoğraf tabanı 0):
+
+| kıyafet | ham çıktı | düzeltilmiş |
+|---|---|---|
+| #14 lacivert tişört | 42.246 | **0** |
+| #16 chino | 72.556 | **20** |
+| #10 sarı tişört | 41.037 | **2** |
+
+Gözle: yeşil şort kişinin gerçek desenli şortuna, yeşil tişört gerçek lacivert
+tişörtüne döndü; çene ve ayak bilekleri temiz.
+
+### 46.4 Önbellek ve sürüm damgası
+
+Dönüşüm ilk çağrıda ~500 ms, sonra diskten 4 ms
+(`g{id}_m{mid}_raw_display.png`). Önbellek kaynaklarından eskiyse yeniden
+üretiliyor.
+
+`dressed_rev` artık ham çıktı ile çıkarım base'inin **ikisinin** damgasından
+türüyor: yalnızca ham çıktıya bakmak, çıkarım base'i yenilendiğinde URL'i
+değiştirmez ve tarayıcı bayat görüntü servis ederdi (§25.7).
+
+371 test geçiyor (6 yeni).
+
+> **Ders:** bir mimari değişiklik, kendisinden ÖNCE alınmış ve hâlâ doğru
+> görünen kararları geçersizleştirebilir. §44 kör noktayı kapattı ama §38'in
+> dayandığı "ham çıktı gösterilebilir" varsayımını sessizce yıktı. Değişiklik
+> sonrası "bu kararın dayanağı hâlâ duruyor mu?" diye taranmalı.

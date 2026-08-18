@@ -88,7 +88,7 @@ def wardrobe() -> JSONResponse:
             "cutout_rev": _rev(g["cutout_path"]),
             # Ham VTON çıktısının damgası. 0 ise o kıyafet için ham çıktı yok
             # ve istemci tek-kıyafet görünümünde bindirmeye düşüyor.
-            "dressed_rev": _rev(str(_ham_yol(g["id"]))),
+            "dressed_rev": _ham_rev(g["id"]),
             # Bu kıyafet mankenin kıyafetiyle AYNI RENK bandında mı?
             #
             # Bindirmede ZEMİN SEÇİMİNİ belirliyor ve ölçümle eklendi: kıyafet
@@ -177,6 +177,20 @@ def _ham_yol(garment_id: int):
     from wardrobe.layers import raw_path
 
     return raw_path(garment_id, mannequin.active_id())
+
+
+def _ham_rev(garment_id: int) -> int:
+    """Ham çıktının sürüm damgası — çıkarım base'i de hesaba katılıyor.
+
+    Kullanıcıya gösterilen görüntü (`dressed_for_display`) İKİ dosyadan
+    türüyor: ham çıktı ve çıkarım base'i. Damgayı yalnızca ham çıktıya
+    bağlamak, çıkarım base'i yenilendiğinde URL'i değiştirmez ve tarayıcı
+    bayat görüntüyü bellekten servis ederdi — §25.7'de tam olarak bu olmuştu.
+    """
+    ham = _rev(str(_ham_yol(garment_id)))
+    if not ham:
+        return 0          # ham çıktı yok: istemci bindirmeye düşsün
+    return max(ham, _rev(str(mannequin.extract_base_path(mannequin.active_id()))))
 
 
 def _manken_ozet() -> dict:
@@ -368,11 +382,17 @@ def dressed_image(garment_id: int) -> FileResponse:
 
     Bindirme çok kıyafette hâlâ tek yol: ham çıktılar ayrı ayrı üretildiği
     için birleştirilemezler (her biri base'in geri kalanını da içeriyor).
-    """
-    from wardrobe.layers import raw_path
 
-    path = raw_path(garment_id, mannequin.active_id())
-    if not path.is_file():
+    ⚠ HAM ÇIKTI DOĞRUDAN SERVİS EDİLMİYOR: §44'ten beri ham çıktı YEŞİL
+    çıkarım base'ine karşı üretiliyor, yani kıyafetin örtmediği her yerde
+    base'in boyanmış kıyafeti duruyor. `dressed_for_display` o bölgeleri
+    gerçek fotoğrafla dolduruyor — kullanıcı yeşil görmüyor, çıkarım hattı
+    ise olduğu gibi yeşil base'le çalışmaya devam ediyor.
+    """
+    from wardrobe.layers import dressed_for_display
+
+    path = dressed_for_display(garment_id, mannequin.active_id())
+    if path is None or not path.is_file():
         raise HTTPException(404, f"#{garment_id} için ham çıktı yok")
     return FileResponse(path, media_type="image/png")
 
