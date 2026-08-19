@@ -3878,3 +3878,35 @@ Kullanılmıyor, zararsız. Kategori kapsama testi artık `ayakkabi` gibi onu da
 bilerek dışarıda bırakıyor.
 
 371 test geçiyor.
+
+### 47.8 §47.7'deki g16 kararı YANLIŞTI — düzeltildi
+
+§47.7'de reextract'in bozduğu 5 katmandan dördü yedekten geri yüklenmiş, g16
+için "yeni sürüm daha iyi" denip bırakılmıştı. **Yanlış karardı.**
+
+Hata yöntemdeydi: iki sürümü karşılaştırırken yalnızca YÜZ bölgesine baktım.
+Yedekteki 247.079'luk sürümde yüze binen hayalet yüz apaçıktı, o yüzden
+199.698'i seçtim. Ama 199.698'in kendi kusuru **bacaklarda ve kalçadaydı** ve
+kadrajın o kısmına hiç bakmadım. Kullanıcı kombinde gördü ve bildirdi.
+
+Kayıp sürüm aslında diskte duruyormuş: `layer_surumleri/g16_m1_v1_poligon-kirpik.png`,
+tam 157.884 px. Ayırt edici işaret dikey aralıkta:
+
+| sürüm | px | y aralığı | kusur |
+|---|---|---|---|
+| **v1 (doğru)** | 157.884 | **%52.7-99.9** | temiz |
+| reextract | 199.698 | %46.0-99.9 | kalçada hayalet kontur |
+| yedek_kapi | 247.079 | %1.9-99.9 | yüzde hayalet yüz |
+
+Pantolon katmanının bele kadar (%46) çıkması zaten şüpheli: `REGION_BANDS`
+"alt" için %46'dan başlıyor, yani katman bandın en üst sınırına dayanmış.
+**Bant sınırına dayanan bir katman, kapının onu kurtaramadığının işareti.**
+
+g10 da 470 px farkla (188.308 → 187.838) reextract'ten kalmıştı; iki ayrı yedek
+188.308'de hemfikir olduğu için o da geri alındı. Artık 11 katmanın tamamı
+çalışan durumla **birebir aynı** ve altı kombin gözle tarandı.
+
+> **Ders:** bir görüntüyü "daha iyi" diye seçerken kadrajın TAMAMINA bakmak
+> gerekiyor. Bir bölgedeki apaçık kusur, başka bölgedeki kusuru görmene engel
+> oluyor — dikkat kötüye gidiyor, iyiye değil. §47.7'de sayıya güvenip gözle
+> bakmamıştım; burada gözle baktım ama **yanlış yere** baktım. İkisi ayrı hata.
