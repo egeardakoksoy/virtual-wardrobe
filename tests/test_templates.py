@@ -13,33 +13,18 @@ from PIL import Image
 from config import CATEGORIES
 from wardrobe import cutout, templates
 
-# FASHN'ın dokümanında birebir sayılan takılabilir ürünler: şapka, takı, çanta.
-AKSESUAR_SABLONLARI = ("saat", "bileklik", "kolye", "sapka", "kasket", "bere",
-                       "canta", "kemer", "atki")
-
 
 def test_tum_sablonlar_gecerli():
     for key, s in templates.SHAPES.items():
         assert s["label"], key
         # Kategori config.CATEGORIES'ten gelmeli — z sırası ve çakışma kuralı
-        # oradan okunuyor. Eskiden yalnızca ("ust","alt") kabul ediliyordu;
-        # aksesuar şablonları eklenince o kural dar kaldı.
+        # oradan okunuyor.
         assert s["category"] in CATEGORIES, f"{key}: geçersiz kategori"
-        # 4 nokta: kemer ve atkı düz dikdörtgen — ve öyle olmaları doğru.
-        # Ölçümde (§17) düz bir dikdörtgen bile bozuk kırpmayı düzeltmişti.
+        # En az 4 nokta. Ölçümde (§17) düz bir dikdörtgen bile bozuk kırpmayı
+        # düzeltmişti, yani silüetin hassas olması gerekmiyor.
         assert len(s["points"]) >= 4, f"{key}: silüet için en az 4 nokta gerekli"
         for x, y in s["points"]:
             assert 0.0 <= x <= 1.0 and 0.0 <= y <= 1.0, f"{key}: normalize değil"
-
-
-def test_fashn_in_destekledigi_aksesuarlar_icin_sablon_var():
-    """Şablon yoksa kullanıcı saat yüklerken 'Tişört' seçmek zorunda kalıyor.
-
-    Kırpma kurtarması devreye girerse o yanlış önsel saati tamamen keserdi.
-    """
-    for k in AKSESUAR_SABLONLARI:
-        assert k in templates.SHAPES, f"şablon yok: {k}"
-        assert templates.SHAPES[k]["category"] == "aksesuar"
 
 
 def test_HER_kategorinin_en_az_bir_sablonu_var():
@@ -50,21 +35,12 @@ def test_HER_kategorinin_en_az_bir_sablonu_var():
     kurtarması devreye girerse o yanlış önsel eteği kesiyordu.
 
     Ayakkabı bilerek dışarıda: base manken diz altından kesik, giydirecek yer
-    yok (§10).
+    yok (§10). Aksesuar da öyle — özellik geri alındı (§47.7), şablonları
+    kaldırıldı; kategori tabloda duruyor ama kullanılmıyor.
     """
     kapsanan = {s["category"] for s in templates.SHAPES.values()}
-    eksik = set(CATEGORIES) - kapsanan - {"ayakkabi"}
+    eksik = set(CATEGORIES) - kapsanan - {"ayakkabi", "aksesuar"}
     assert not eksik, f"şablonu olmayan kategori: {sorted(eksik)}"
-
-
-def test_aksesuar_onselleri_COMERT():
-    """Küçük nesne kayık çekilirse dar bir önsel onu tamamen keser.
-
-    Aranan hassasiyet değil kapsayıcılık: önsel "kabaca burada" demeli.
-    """
-    for k in AKSESUAR_SABLONLARI:
-        oran = templates.prior_mask(k, 200, 200).mean()
-        assert 0.15 < oran < 0.75, f"{k}: önsel oranı {oran:.2f}"
 
 
 def test_varsayilan_sablon_var():

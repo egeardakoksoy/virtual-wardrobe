@@ -3675,3 +3675,206 @@ damgada. Doğrulandı: damga 1787065294 → 1787065295.
 > kodun kendisi de bir girdidir. "Kaynak dosya değişmediyse çıktı da
 > değişmemiştir" varsayımı, dönüşümü siz değiştirdiğinizde bozuluyor.
 > Ve bu hata sinsi: sunucu doğru, testler yeşil, kullanıcı yanlış görüyor.
+
+---
+
+## 47. Aksesuarın alt türüne göre bölge bandı ✅
+
+§29'un 5. maddesi açıktı: *"saat/aksesuarın gerçekten çalıştığını ölçmek —
+tryon-max'in saati bileğe doğru yerleştirdiği DENENMEDİ."* Denendi. Model
+doğru yapıyor; **hata çıkarımdaydı.**
+
+### 47.1 Belirti
+
+Kullanıcı saati kombine ekledi, ekranda hiçbir şey görünmedi. Ama saati TEK
+başına seçince görünüyordu. İki görüntü farklı: tek kıyafette ham VTON çıktısı
+gösteriliyor (§38), 2+ kıyafette katman bindiriliyor.
+
+Katmanın içinde saat yoktu — 5.513 px, konum **y %1.5-9.2**, renk `[91 76 68]`.
+Başın tepesi ve saç.
+
+### 47.2 Kök sebep: `largest_component` küçük nesnede ters tepiyor
+
+Fark saati DOĞRU buluyor, ama 4. sırada:
+
+| px | y | bölge | renk |
+|---|---|---|---|
+| 3.498 | %0.0-2.4 | baş | tavan/arka plan |
+| 3.486 | %0.6-10.5 | baş | saç |
+| 2.537 | %8.8-23.1 | boyun | yüz |
+| **1.894** | **%63.5-67.4** | **bilek** | **`[125 122 124]` — SAAT** |
+
+`largest_component` en büyüğü tutup gerisini atıyor. Tişörtte doğru (kıyafet
+zaten en büyük parça), saatte yanlış: difüzyonun saçta ve tavanda ürettiği
+gürültü saatten büyük.
+
+Bölge kapısı (§30) da koruyamıyor, çünkü aksesuarda bilinçli olarak kapalıydı:
+*"şapka başta, kolye boyunda, saat bilekte; kapı burada tanım gereği anlamsız."*
+
+### 47.3 ⚠ İlk fikir ÖLÇÜMDE ÇÜRÜDÜ
+
+Önce "en büyük bileşen" yerine **kıyafetin kendi rengine en yakın bileşen**
+önerildi. Saatte çalışıyordu (paletine uzaklık 23.5, en yakın bileşen saat).
+
+Üçüncü örnekte çöktü. Bilekliğin paleti:
+
+```
+[248 253 252] · [6 7 8] · [81 86 83] · [230 250 250]
+```
+
+Neredeyse beyaz **ve** neredeyse siyah — metalin doğası: parlak yansıma +
+koyu gölge. Palet nesnenin rengini değil parlaklık uçlarını temsil ediyor ve
+hiçbir bileşenle anlamlı eşleşmiyor. İnce zincir ayrıca 15.840 parçaya
+bölünmüş, tek bileşen olarak hiç durmuyor.
+
+Saatte 23.5 (saat) ile 31.5 (saç) arasında yalnızca 8 birim vardı — tek
+örnekle eşik koymanın klasik tuzağı (§20.1). *İyi ki üç örnek toplanmadan
+uygulanmadı.*
+
+### 47.4 Uygulanan: alt türe özel bant + kişi maskesi
+
+Kategori "her yerde" derken **alt tür kesin konuşuyor**: saat bilekte, şapka
+başta. VLM zaten `subcategory` çıkarıyor (`ACCESSORY_BANDS`, en uzun anahtar
+kazanıyor — "kral zincir bileklik" hem `zincir` hem `bileklik` içeriyor ve
+daha özgül olan doğru cevabı veriyor).
+
+**Aksesuarda güvenlik freni YOK.** Fren "kapı çoğunu yiyorsa bant yanlıştır"
+varsayımına dayanıyor; kıyafette doğru, aksesuarda tam ters — saat tuvalin
+%0.2'si, kapının %95+ atması beklenen davranış. Fren çalışsaydı kapı her
+seferinde devre dışı kalırdı (§44.8'in dersi).
+
+Bant tek başına yetmedi: bilek bandında duvar da var. Kesişim `person_mask`
+ile alındı — ölçüm ayrımı tartışmasız yaptı:
+
+| | bandın içinde kalan, kişi maskesinin İÇİNDE |
+|---|---|
+| şapka | %98.4 |
+| saat | %88.6 |
+| **bileklik** | **%0.0** (kalan tek şey sağ kenardaki duvar, x %80.9-99.9) |
+
+### 47.5 Sonuç (ücretsiz, `--reextract`)
+
+| | önce | sonra |
+|---|---|---|
+| **saat** | 5.513 px · y %1.5-9.2 · saç | **1.267 px · y %64.1-67.1 · BİLEK** ✅ |
+| **şapka** | 12.383 px · y %2.6-11.6 · baş | 12.171 px · aynı yer ✅ regresyon yok |
+| bileklik | 5.433 px · y %1.5-8.4 · saç | 961 px · y %72.7-76.6 · el |
+
+Gözle doğrulandı: saat bileğe oturdu — gümüş çelik kordon, lacivert kadran,
+dolaptaki görselin aynısı. Şapka hiç değişmedi.
+
+382 test geçiyor (9 yeni).
+
+> **AÇIK İŞ — bileklik hâlâ yanlış.** Model zinciri **BOYNA** taktı, yani ham
+> çıktıda bilekte zaten hiçbir şey yok. Çıkarım bunu düzeltemez; kalan 961 px
+> el bölgesindeki gürültü ve kaplaması (%0.09) saatinkine (%0.11) çok yakın
+> olduğu için boyutla ayırmak da mümkün değil. Denenmemiş çözüm: bilekliği
+> bileğe sarılmış hâlde, bilek görünecek şekilde yeniden çekmek (§27'nin şablon
+> fikri) — 2 kredi.
+>
+> **Ayrıca:** iki aksesuar hâlâ AYNI ANDA giyilemiyor. `slots` kategoriden
+> geliyor ve aksesuarın tek slot'u var, yani şapka seçilince saat düşüyor.
+> `ACCESSORY_BANDS`'in anahtarları bu slot'u da verebilir (`bas`/`bilek`/
+> `boyun`/`bel`) ama bu şema değişikliği — yapılmadı.
+
+### 47.6 Şapkanın ortası açıktı — Lab filtresi şapkayı yiyordu
+
+Kullanıcı bildirdi: şapka kafaya oturmuyor ve **ortası açık**, altından saç
+görünüyor. Katmanda 655 px'lik tek parça bir delik ölçüldü (tepede, y50-82).
+
+Delik bölgesinde ham fark **115.3** (eşik 18), yani maske orayı yakalıyor —
+sonradan bir adım siliyordu. Kişi maskesi %100 kapsıyordu, o değildi.
+
+**Suçlu: `drop_base_leak_lab`.** Kapatınca şapka 12.171 → **20.701 px** ve
+delik **655 → 0**. Yani filtre şapkanın **%41'ini** yiyordu.
+
+Sebep, filtrenin kendi varsayımının çökmesi: iki yönlü test "piksel kıyafetin
+paletine mi, aynı koordinattaki base pikseline mi yakın" diye soruyor. Şapka
+`[61 106 154]`, base'in tişörtü `[67 96 144]` — Lab uzaklığı **4.0**. İki palet
+çakışınca sorunun cevabı yok.
+
+`min_keep` freni yakalayamadı: %58.8 kaldığı için eşiğin (0.55) üstünde. Fren
+"çoğunu yerse" diyor; buradaki hasar "yarısına yakınını yerse".
+
+**Çözüm:** `drop_base_clothing` ve `drop_extract_color`'da zaten olan güvenlik
+kuralının aynısı — ayrım yapılamayacak durumda filtre kendini durdursun.
+Eşik dolabın tamamında kalibre edildi:
+
+```
+şapka 4.0 │ 12.0  14.8  15.8  17.7  27.5  27.8 ... 87.8
+          └─ BASE_LEAK_LAB_SAFE_DISTANCE = 8: yalnızca şapka atlıyor
+```
+
+12'deki lacivert tişört filtreyi kullanmaya devam ediyor — filtrenin varlık
+sebebi zaten o (§19).
+
+**Cerrahi olduğu ölçüldü.** `--reextract` sonrası 6 katman değişti, ama koruma
+kapalıyken de aynı değerleri verdiler: beşi eski kodla üretilmiş oldukları için
+değişti (bayat katmanlar), koruma yalnızca #18'i etkiledi.
+
+| # | koruma kapalı | koruma açık |
+|---|---|---|
+| 7, 9, 12, 13, 16, 5 | değişmedi | değişmedi |
+| **18 şapka** | 12.171 | **20.701** |
+
+Gözle: logonun ortasındaki delik kapandı (aslan tam görünüyor), saç tepeden
+geçmiyor. Şapka hâlâ biraz yüksek duruyor — o modelin yerleştirmesi, çıkarım
+değil.
+
+384 test geçiyor (2 yeni).
+
+> **Yan bulgu:** dolapta 5 katman eski kodla üretilmiş hâlde duruyormuş
+> (g7 -%22.6, g9 -%2.1, g12 -%3.2, g13 -%7.4, g16 +%26.5). `--reextract`
+> hepsini güncel hatta çekti. Katmanların hangi kod sürümüyle üretildiği
+> hiçbir yerde tutulmuyor — §46.5'teki `RESTORE_VERSION` fikrinin katman
+> tarafında da karşılığı olmalı. Yapılmadı.
+
+### 47.7 GERİ ALINDI — aksesuar dolaptan çıkarıldı
+
+Şapka düzeltildikten sonra kullanıcı **çalışan kıyafetlerin bozulduğunu**
+bildirdi: gri şortun ve beyaz tişörtün kenarlarında base'in lacivert kıyafeti
+taşıyordu. Haklıydı.
+
+**Sebep benim hatam.** `build-layers --reextract` komutunu tek bir kıyafete
+değil **tüm dolaba** çalıştırdım. Bu, 5 katmanı (g7, g9, g12, g13, g16) yeniden
+üretti — ve o katmanlar aslında BAYAT DEĞİL, ÇALIŞIR hâldeydi. Piksel
+sayılarındaki değişimi gördüm (g7 -%22.6, g13 -%7.4) ama "güncel hatta çekildi"
+diye yorumlayıp **gözle bakmadım.** Katman küçülünce altından base'in lacivert
+kıyafeti göründü.
+
+§25.5'in dersi bir kez daha, bu sefer bana: *bir sayının yönü (arttı/azaldı)
+iyi mi kötü mü olduğunu söylemez.* Kaplamanın azalması "temizlendi" de olabilir
+"delindi" de; ayıran tek şey göz.
+
+**Kurtarma:** g7, g9, g12, g13 `data/layers_yedek_kapi_20260813_1655`'ten
+birebir geri yüklendi (piksel sayıları reextract öncesiyle aynı). g16 için o
+tarihli yedek DAHA KÖTÜYDÜ (yüzde hayalet yüz, boyunda mavi yaka — §30'un
+vakası), o yüzden yeni sürümü bırakıldı; gözle karşılaştırıldı.
+
+**Karar:** aksesuar kısmı tamamen çıkarıldı (kullanıcının teslim tarihi vardı
+ve risk almaya değmezdi). #17 saat, #18 şapka, #19 bileklik dolaptan silindi;
+`ACCESSORY_BANDS`, kişi maskesi kesişimi ve `BASE_LEAK_LAB_SAFE_DISTANCE`
+kod tarafında geri alındı. Dolap 12 kıyafet, 373 test.
+
+**Bilgi kayboldu mu:** hayır. §47.1-47.6 ölçümleriyle duruyor. Yeniden
+denenecekse başlangıç noktası orası — özellikle *alt türe göre bant* fikri
+çalışıyordu (saat saçtan bileğe taşındı, şapka regresyon vermedi).
+
+> **Geri alınırken dikkat:** `--reextract`'i asla tüm dolaba çalıştırma.
+> `--id N` ile tek tek, ve her birine GÖZLE bak. Katmanların hangi kod
+> sürümüyle üretildiği hiçbir yerde tutulmuyor (§46.5'teki `RESTORE_VERSION`
+> fikrinin katman tarafında karşılığı yok) — bu yüzden hangi katmanın
+> yenilenmeye ihtiyacı olduğu bilinemiyor.
+
+**Ek (§47.7):** aksesuar çekim şablonları da kaldırıldı (9 şablon: saat,
+bileklik, kolye, şapka, kasket, bere, çanta, kemer, atkı). Yükleme formundaki
+şablon listesi tamamen `/api/templates`'ten türediği için "Aksesuar" grubu
+kendiliğinden kayboldu — arayüzde sabit kodlanmış hiçbir kategori adı yok,
+o tasarım burada işe yaradı. Şablon sayısı 22 → 13.
+
+`config.CATEGORIES`'teki `aksesuar` satırı **duruyor**: z-sırası ve slot kuralı
+mimarinin parçası ve README'de belgeli, kaldırmak testlere ve dokümana yayılırdı.
+Kullanılmıyor, zararsız. Kategori kapsama testi artık `ayakkabi` gibi onu da
+bilerek dışarıda bırakıyor.
+
+371 test geçiyor.
