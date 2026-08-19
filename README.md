@@ -5,20 +5,15 @@ kıyafetleri bir manken üzerinde **anında giydirip** kombin deniyor, beğendi�
 tek tıkla **gerçekçi render**'a çeviriyor ve doğal dille düzenliyor
 ("kolları kıvır", "sola dön").
 
-```
-Fotoğraf → Arka plan temizleme → Öznitelik çıkarımı → Dolap
-                                                        ↓
-                        Katman üretimi (VTON, kıyafet başına 1 kez)
-                                                        ↓
-        Manuel giydirme (<50 ms, bedava)  →  Gerçekçi render  →  Düzenleme sohbeti
-```
+![Bir kez öde, sonsuz kez giy](nasil-calisiyor-akis.svg)
 
 **Durum:** Faz 0 ✅ · Faz 1 ✅ · Faz 2 ✅ · Faz 4 ✅ · Faz 6 ✅ · Faz 3 ve 5 açık
-· **365 test geçiyor** (hiçbiri gerçek API çağırmıyor)
+· **373 test geçiyor** (hiçbiri gerçek API çağırmıyor)
 
 Bu README mimariyi ve gerekçelerini anlatıyor. Her kararın arkasındaki **ölçüm
 kayıtları** — çürüyen hipotezler dâhil — [`HANDOFF.md`](HANDOFF.md) içinde
-(3.500+ satır mühendislik günlüğü).
+(3.700+ satır mühendislik günlüğü). Teknik bilgisi olmayan biri için hazırlanmış
+görsel anlatım: [`nasil-calisiyor.html`](nasil-calisiyor.html).
 
 ---
 
@@ -68,7 +63,7 @@ Windows'ta `Dolabi Ac.bat` çift tıklamak da aynı işi yapıyor.
 | `python cli.py tryon-ab <id> --seed 42` | VTON ayar karşılaştırması (**ücretli**) |
 | `python cli.py layer-ab <id>` | Katman mimarisi model karşılaştırması (**ücretli**) |
 | `python cli.py web` | Giydirme arayüzünü başlatır |
-| `pytest` | 365 test |
+| `pytest` | 373 test |
 
 > `--reextract` önemli: çıkarım parametrelerini ayarlarken API'ye tekrar ödeme
 > yapmamak için ham VTON çıktıları diskte saklanıyor. Bu projedeki iyileştirmelerin
@@ -120,11 +115,7 @@ tek kaynak `config.py`.
 Manken sabit olduğuna göre, giydirme sonrasında **değişen pikseller kıyafetin ta
 kendisidir.** Ayrı bir segmentasyon modeli gerekmiyor:
 
-```
-base (giydirilmemiş)  ─┐
-                       ├─►  |fark| > eşik  ─►  temizle  ─►  RGBA katman
-dressed (giydirilmiş) ─┘
-```
+![Kıyafeti kesmiyoruz, farkı alıyoruz](nasil-calisiyor-fark.svg)
 
 Ham fark yetmiyor. Dokuz temizlik adımının **her biri** bir kusur ölçüldükten
 sonra eklendi:
@@ -182,7 +173,7 @@ Sahnede ne gösterildiği seçime bağlı:
 | seçim | görüntü |
 |---|---|
 | boş | gerçek fotoğraf |
-| 1 kıyafet | **ham VTON çıktısı** — ücreti zaten ödenmiş, çıkarım kusuru yok |
+| 1 kıyafet | **ham VTON çıktısı** — ücreti zaten ödenmiş, çıkarım kusuru yok · yeşil bölgeler gerçek fotoğrafla doldurulur |
 | 2+ kıyafet, hepsi uzak renkte | nötr zemin + katmanlar |
 | 2+ kıyafet, biri kör noktada | gerçek fotoğraf zemin + katmanlar |
 
@@ -329,7 +320,7 @@ wardrobe/
 web/
   app.py               FastAPI uç noktaları
   static/              index.html · app.js · style.css
-tests/                 365 test (22 dosya), API anahtarı gerektirmez
+tests/                 373 test (22 dosya), API anahtarı gerektirmez
 data/                  raw/ cutout/ layers/ mannequins/ renders/ + wardrobe.db
 ```
 
@@ -341,7 +332,7 @@ data/                  raw/ cutout/ layers/ mannequins/ renders/ + wardrobe.db
 pytest
 ```
 
-365 test, ~60 saniye, **hiçbiri gerçek API çağırmıyor.** `conftest.py` her testte
+373 test, ~60 saniye, **hiçbiri gerçek API çağırmıyor.** `conftest.py` her testte
 API anahtarlarını siliyor, varsayılan veritabanını ve veri dizinlerini
 `tmp_path`'e yönlendiriyor. Geliştiricinin `.env`'i yüklü olsa bile testler
 **fatura üretmiyor** ve gerçek dolabı kirletmiyor.

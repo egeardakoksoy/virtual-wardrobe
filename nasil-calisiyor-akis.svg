@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 1000 620" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="akis-title akis-desc">
+          <title id="akis-title">Bir kez öde, sonsuz kez giy</title>
+          <desc id="akis-desc">İki fazlı akış: yükleme fazında kıyafet başına tek bir ücretli yapay zekâ çağrısı şeffaf bir katman üretiyor; giydirme fazında bu katmanlar üst üste bindirilerek ücretsiz ve anında kombin oluşturuluyor.</desc>
+          <defs><style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap');</style>
+            <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+            <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+          </defs>
+
+          <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+          <!-- ===== ZONE RECTS (painted first, behind everything) ===== -->
+          <rect x="32" y="64" width="936" height="140" rx="8" fill="none" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,4"/>
+          <rect x="32" y="372" width="936" height="140" rx="8" fill="none" stroke="rgba(45,49,66,0.20)" stroke-width="1" stroke-dasharray="4,4"/>
+
+          <!-- ===== ARROWS (before boxes) ===== -->
+          <!-- Faz 1 zinciri: hepsi aynı y, düz çizgi -->
+          <line x1="252" y1="140" x2="300" y2="140" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+          <line x1="476" y1="140" x2="524" y2="140" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+          <line x1="700" y1="140" x2="748" y2="140" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+          <!-- Fark al -> Şeffaf katman (dirsek, aksan: diyagramın ana iddiası) -->
+          <path d="M 836,176 V 220 Q 836,228 828,228 H 568 Q 560,228 560,236 V 252"
+                fill="none" stroke="#eb6c36" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+          <rect x="640" y="208" width="112" height="12" rx="2" fill="#f5f5f5"/>
+          <text x="696" y="217" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.06em">DEĞİŞEN = KIYAFET</text>
+
+          <!-- Katman -> Üst üste koy (dikey, düz) -->
+          <line x1="500" y1="324" x2="500" y2="412" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+          <rect x="512" y="356" width="92" height="12" rx="2" fill="#f5f5f5"/>
+          <text x="516" y="365" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.06em">HER TIKLAMADA</text>
+
+          <!-- Faz 2 zinciri -->
+          <line x1="316" y1="448" x2="408" y2="448" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+          <line x1="592" y1="448" x2="684" y2="448" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+          <!-- ===== ZONE LABELS (mask over the dashed boundary) ===== -->
+          <rect x="52" y="58" width="288" height="12" rx="2" fill="#f5f5f5"/>
+          <text x="56" y="67" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">FAZ 1 · KIYAFET BAŞINA BİR KEZ · ÜCRETLİ</text>
+
+          <rect x="52" y="366" width="292" height="12" rx="2" fill="#f5f5f5"/>
+          <text x="56" y="375" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">FAZ 2 · HER TIKLAMADA · BEDAVA VE ANINDA</text>
+
+          <!-- ===== NODES ===== -->
+          <!-- 1. Fotoğraf (girdi / kullanıcı) -->
+          <rect x="76" y="104" width="176" height="72" rx="6" fill="#f5f5f5"/>
+          <rect x="76" y="104" width="176" height="72" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+          <text x="164" y="136" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Kıyafeti fotoğrafla</text>
+          <text x="164" y="154" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">telefon · yatakta çekilmiş</text>
+
+          <!-- 2. Arka plan temizle -->
+          <rect x="300" y="104" width="176" height="72" rx="6" fill="#f5f5f5"/>
+          <rect x="300" y="104" width="176" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <text x="388" y="136" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Arka planı sil</text>
+          <text x="388" y="154" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">yatak · duvar gider</text>
+
+          <!-- 3. Yapay zekâ giydir — FOKAL -->
+          <rect x="524" y="104" width="176" height="72" rx="6" fill="#f5f5f5"/>
+          <rect x="524" y="104" width="176" height="72" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+          <text x="612" y="136" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Yapay zekâ giydirir</text>
+          <text x="612" y="154" fill="#eb6c36" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">15-40 sn · tek ücretli adım</text>
+
+          <!-- 4. Farkı al -->
+          <rect x="748" y="104" width="176" height="72" rx="6" fill="#f5f5f5"/>
+          <rect x="748" y="104" width="176" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <text x="836" y="136" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Öncesi ile karşılaştır</text>
+          <text x="836" y="154" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">bkz. diyagram 2</text>
+
+          <!-- 5. Şeffaf katman — FOKAL (dolabın kalıcı ürünü) -->
+          <rect x="388" y="252" width="224" height="72" rx="6" fill="#f5f5f5"/>
+          <rect x="388" y="252" width="224" height="72" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+          <text x="500" y="284" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Şeffaf katman diske kaydedilir</text>
+          <text x="500" y="302" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">kıyafet çıkartması · bir daha üretilmez</text>
+
+          <!-- 6. Kombin seç (girdi / kullanıcı) -->
+          <rect x="132" y="412" width="184" height="72" rx="6" fill="#f5f5f5"/>
+          <rect x="132" y="412" width="184" height="72" rx="6" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+          <text x="224" y="444" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Kıyafetleri seç</text>
+          <text x="224" y="462" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">tişört + şort + ceket</text>
+
+          <!-- 7. Üst üste koy -->
+          <rect x="408" y="412" width="184" height="72" rx="6" fill="#f5f5f5"/>
+          <rect x="408" y="412" width="184" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <text x="500" y="444" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Katmanları üst üste koy</text>
+          <text x="500" y="462" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">sıra: ayakkabı-alt-üst-ceket</text>
+
+          <!-- 8. Sonuç -->
+          <rect x="684" y="412" width="184" height="72" rx="6" fill="#f5f5f5"/>
+          <rect x="684" y="412" width="184" height="72" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <text x="776" y="444" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Kombin ekranda</text>
+          <text x="776" y="462" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">&lt;50 ms · sunucuya istek yok</text>
+
+          <!-- ===== LEGEND (yatay şerit, en altta) ===== -->
+          <line x1="32" y1="548" x2="968" y2="548" stroke="rgba(45,49,66,0.10)" stroke-width="0.8"/>
+          <text x="32" y="572" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" letter-spacing="0.14em">AÇIKLAMA</text>
+
+          <rect x="140" y="562" width="12" height="12" rx="2" fill="rgba(79,93,117,0.10)" stroke="#7a8399" stroke-width="1"/>
+          <text x="160" y="572" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">KULLANICININ YAPTIĞI</text>
+
+          <rect x="392" y="562" width="12" height="12" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+          <text x="412" y="572" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">PROGRAMIN YAPTIĞI · BEDAVA</text>
+
+          <rect x="700" y="562" width="12" height="12" rx="2" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1"/>
+          <text x="720" y="572" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace">PARA VE ZAMAN HARCANAN</text>
+        </svg>
