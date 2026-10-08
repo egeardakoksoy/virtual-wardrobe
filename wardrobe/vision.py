@@ -126,7 +126,39 @@ _CATEGORY_DEFAULTS: dict[str, tuple[int, int, str]] = {
 
 
 def has_api_key() -> bool:
-    return bool(os.environ.get("ANTHROPIC_API_KEY"))
+    """Claude'a erişim var mı — birinci taraf API ya da Microsoft Foundry."""
+    from wardrobe import foundry
+
+    return bool(os.environ.get("ANTHROPIC_API_KEY")) or foundry.claude_ready()
+
+
+def _claude_istemcisi():
+    """Claude istemcisi: Foundry dağıtımı tanımlıysa `AnthropicFoundry`.
+
+    Foundry açık bir tercih — kaynak, anahtar VE Claude dağıtım adı birlikte
+    verilmedikçe devreye girmiyor. Böylece ikisi de tanımlıysa kim kazanır
+    sorusu yok: dağıtım adını yazan kişi Foundry'yi seçmiş demektir.
+    """
+    import anthropic
+
+    from wardrobe import foundry
+
+    if foundry.claude_ready():
+        return anthropic.AnthropicFoundry(
+            api_key=foundry.api_key(), resource=foundry.resource()
+        )
+    return anthropic.Anthropic()
+
+
+def active_label() -> str:
+    """Hangi öznitelik kaynağının kullanılacağı — banner ve doctor için."""
+    from wardrobe import foundry
+
+    if foundry.claude_ready():
+        return f"Claude @ Foundry ({foundry.claude_deployment()})"
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return f"Claude ({MODEL})"
+    return "MOCK (Claude anahtarı yok)"
 
 
 # Düzenleme talimatlarını çevirmek için kullanılan model. Öznitelik
@@ -153,7 +185,7 @@ def looks_english(text: str) -> bool:
     return not any(c in text.lower() for c in "çğıöşü")
 
 
-def translate_prompt(text: str, *, model: str = TRANSLATE_MODEL) -> str:
+def translate_prompt(text: str, *, model: str | None = None) -> str:
     """Türkçe düzenleme talimatını İngilizceye çevirir.
 
     NEDEN GEREKLİ: FASHN'ın dokümanındaki tüm prompt örnekleri İngilizce ve
@@ -172,9 +204,12 @@ def translate_prompt(text: str, *, model: str = TRANSLATE_MODEL) -> str:
         return text
 
     try:
-        import anthropic
+        from wardrobe import foundry
 
-        resp = anthropic.Anthropic().messages.create(
+        if model is None:
+            model = (foundry.claude_translate_deployment()
+                     if foundry.claude_ready() else TRANSLATE_MODEL)
+        resp = _claude_istemcisi().messages.create(
             model=model,
             max_tokens=300,
             system=TRANSLATE_SYSTEM,
@@ -192,7 +227,7 @@ def extract_attributes(
     image_path: str | Path,
     *,
     name_hint: str | None = None,
-    model: str = MODEL,
+    model: str | None = None,
 ) -> dict:
     """Kıyafet fotoğrafından öznitelikleri çıkarır.
 
@@ -210,10 +245,14 @@ def extract_attributes(
         return _mock_attributes(image_path, name_hint=name_hint)
 
     try:
-        import anthropic
+        from wardrobe import foundry
+
+        # Foundry'de `model` alanı DAĞITIM adı ister, model kimliği değil.
+        if model is None:
+            model = foundry.claude_deployment() if foundry.claude_ready() else MODEL
 
         img = downscale(load_upright(image_path))
-        client = anthropic.Anthropic()
+        client = _claude_istemcisi()
         resp = client.messages.create(
             model=model,
             max_tokens=MAX_TOKENS,

@@ -5,23 +5,22 @@
 > Durumu görmek için: `python cli.py doctor` (anahtarları maskeli gösterir).
 
 **Konum:** `C:/Users/egear/OneDrive/Masaüstü/virtual-wardrobe`
-**Durum:** Faz 0 ✅ · Faz 1 ✅ · Faz 2 ✅ · Faz 4 ✅ · Faz 6 ✅ · Faz 3 ertelendi
-**Bu turda:** §28 çoklu manken · §30 bölge kapısı · §31 kırp→hizala · §32 kişi
-maskesi · §36 şablon önseli kapatıldı · §38 tek kıyafette ham çıktı ·
-§40+43 zemin seçimi · **§44 KÖR NOKTA ÇÖZÜLDÜ (yeşil çıkarım base'i)**
-**Testler:** 365 geçiyor (`pytest`, ~65 sn, API çağırmaz)
-**Dolap:** 12 kıyafet
-**Mankenler:** `base` (#1, 12 katman, **aktif**) · `manken 2` (#139, 3 katman —
-  #10 sarı, #14 lacivert, #16 chino; yeşil çıkarım base'i var).
-  *(`Stüdyo` mankeni bu turda silindi — 0 katmanı vardı, kayıp yok.)*
-**Sağlayıcı:** FASHN doğrudan API, `tryon-max` (varsayılan). `FASHN_API_KEY` gerekli.
-**Kredi:** ~48 kaldı (100 alındı). Bu turda 22 harcandı: §31 (2) · §32.3 ölçümü (4) ·
-  §34.5 (4) · §44 renk deneyi (6) · §44.9 slot deneyi (6)
+**GitHub:** https://github.com/egeardakoksoy/virtual-wardrobe (public)
+**Durum:** Faz 0 ✅ · Faz 1 ✅ · Faz 2 ✅ · Faz 4 ✅ · Faz 6 ✅ · Faz 3 ertelendi ·
+  **Microsoft AI Innovators staj teslimi TAMAMLANDI, sertifika alındı (17.8.2026)**
+**Testler:** 394 geçiyor (`pytest`, ~95 sn, API çağırmaz) — 23'ü Foundry
+**Dolap:** 12 kıyafet (7 üst + #23 oxford gömlek, 4 alt) · aksesuar YOK (§47.7)
+**Mankenler:** `base` (#1, 12 katman, **aktif**) · `manken 2` (#139, 3 katman)
+**Sağlayıcı:** FASHN doğrudan API, `tryon-max` (varsayılan). Foundry eklendi (§48, ölçülmedi).
+**Kredi:** BİLİNMİYOR — §47 aksesuar denemeleri ve video çekimi (4 yükleme) harcadı.
+  FASHN panelinden kontrol et.
 **Sunucu:** `Dolabi Ac.bat` çift tıkla (ya da `python cli.py web`) → http://127.0.0.1:8000
 
-> ### ⚠ SIRADAKİ İŞ: §45'e bak
-> §44 bu turun en önemli sonucu — kör nokta kapandı. Açık sorular, ölçülmemiş
-> hipotezler ve sıradaki adaylar §45'te; mimarinin özeti §2 ve §45.1'de.
+> ### ⚠ YENİ SOHBETTE İLK İŞ: §49 ve §50'ye bak
+> Staj teslimi bitti. Açık iş: bir Microsoft çalışanının Foundry talebi — kod
+> yazıldı ve commit'lendi ama **gerçek çağrıyla hiç denenmedi**: kendi Azure
+> hesabımızda hiçbir güncel modele kota çıkmadı (§50). Push durumu ve sıradaki
+> adımlar §49'da.
 
 ---
 
@@ -3910,3 +3909,253 @@ g10 da 470 px farkla (188.308 → 187.838) reextract'ten kalmıştı; iki ayrı 
 > gerekiyor. Bir bölgedeki apaçık kusur, başka bölgedeki kusuru görmene engel
 > oluyor — dikkat kötüye gidiyor, iyiye değil. §47.7'de sayıya güvenip gözle
 > bakmamıştım; burada gözle baktım ama **yanlış yere** baktım. İkisi ayrı hata.
+
+---
+
+## 48. Microsoft Foundry desteği — Claude ve görüntü modeli
+
+### 48.1 Neden
+
+Projeyi kendi ortamında ayağa kaldıran bir Microsoft çalışanı görüntü
+üretme noktasında durdu: hat FASHN / fal / Anthropic anahtarları istiyordu.
+Talep: Microsoft Foundry'de oluşturulan modellerle ve tek bir Foundry API
+anahtarıyla uçtan uca çalışabilmek.
+
+### 48.2 Foundry'de ne var (Ekim 2026)
+
+| ihtiyaç | Foundry karşılığı | durum |
+|---|---|---|
+| Öznitelik çıkarımı (Claude) | Claude doğrudan Foundry'de, `AnthropicFoundry` istemcisi | **birebir karşılık** — yapılandırılmış çıktı destekleniyor |
+| Sanal deneme | **hazır VTON modeli YOK** | gpt-image ailesi (gpt-image-2 genel kullanımda) çok görselli düzenleme yapıyor: kişi + kıyafet + talimat |
+| Manken üretimi | gpt-image `images.generate` | karşılık var |
+| Düzenleme sohbeti | gpt-image `images.edit` | karşılık var |
+
+Asıl sorun ikinci satır. gpt-image, GeminiEditProvider ile aynı türden bir
+model — genel amaçlı düzenleyici — ve Gemini katman üretiminden **ölçümle
+dışlanmıştı**: kıyafet dışını da yeniden çiziyordu, fark tabanlı çıkarım
+kirleniyordu.
+
+### 48.3 Çözüm: varsayımı modelden bekleme, kendin sağla
+
+`vton.bolgeye_kisitla`: model çıktısı, kıyafetin fiziksel olarak
+bulunabileceği bölgenin (**kategori bandı ∩ genişletilmiş kişi silüeti**)
+dışında base fotoğrafla değiştiriliyor. Fark orada tanım gereği sıfır.
+
+Yan faydası: tek kıyafet görünümünde (§38) ham çıktı gösteriliyor; bölge
+dışı base olduğu için kullanıcının yüzü ve odası birebir kendi fotoğrafı.
+
+**Kontrol deneyi** (sahte model HER pikseli +40 kaydırıyor, gövdeye kıyafet
+çiziyor — Gemini kusurunun abartılmış hâli):
+
+| | kaplama | yüz | bacak | bant içi duvar |
+|---|---|---|---|---|
+| kısıtlama kapalı | %65.0 + "katman çok geniş" | 0 | 0 | **2.925 px** |
+| kısıtlama açık | %38.3, uyarı yok | 0 | 0 | **0** |
+
+Yüz ve bacaklar iki durumda da temiz — onları §30'un bölge kapısı zaten
+koruyor. Kısıtlamanın ayırt edici katkısı **bant içindeki duvar**. Bunu
+ölçmeden "yüzü de koruyor" diye yazacaktım; kontrol olmasa iddia yanlış
+gerekçeye dayanırdı.
+
+### 48.4 Yapı
+
+- `wardrobe/foundry.py` — tek yapılandırma kaynağı. Kaynak + anahtar +
+  dağıtım adları. Her parça bağımsız açılıyor; dağıtım adı açık bir tercih
+  (kaynak + anahtar tek başına hiçbir şeyi değiştirmiyor).
+- `vision._claude_istemcisi()` — Foundry'de Claude dağıtımı tanımlıysa
+  `AnthropicFoundry`, yoksa birinci taraf API. `model` alanına **dağıtım adı**
+  gidiyor. Çeviri için ayrı dağıtım opsiyonel.
+- `vton.FoundryImageProvider` — `try_on` (bölge kısıtlamalı), `edit`
+  (kısıtlamasız — "sola dön" pozu bilerek değiştiriyor), `text_to_image`.
+- Otomatik sıra: fashn → fal → **foundry** → mock. FASHN bu iş için eğitilmiş
+  ve ölçülmüş; Foundry yalnızca FASHN/fal yokken seçiliyor.
+- `vton.get_edit_provider()` — düzenleme sohbeti artık FASHN'a sabit değil.
+- `conftest` Foundry değişkenlerini de siliyor (§6.1 #8'in dersi).
+- `python cli.py doctor` — Foundry bölümü; anahtar asla yazılmıyor.
+
+23 test, 394 test toplam. Hiçbiri Foundry'ye çıkmıyor.
+
+### 48.5 ⚠ ÖLÇÜLMEYENLER — ilk gerçek çalıştırmada bakılacaklar
+
+Bu sağlayıcıyla **hiçbir gerçek çağrı yapılmadı** (anahtar yok). Kod
+Microsoft'un belgelediği arayüze göre yazıldı, SDK imzası doğrulandı ama:
+
+1. **Uç nokta rotası.** gpt-image-2 için `images.edit`'in v1 rotasında
+   (`/openai/v1/images/edits`) çalıştığını belgelerde birebir göremedim;
+   üretim rotası belgeli. Çalışmazsa kod değişmeden
+   `FOUNDRY_OPENAI_BASE_URL` / `FOUNDRY_OPENAI_API_VERSION` ile düzeltilebilir.
+2. **Poz kayması.** Model gövdeyi birkaç piksel kaydırırsa kıyafet bölge
+   İÇİNDE de kaymış bir gövdeye çiziliyor. Kısıtlama bunu çözmüyor.
+3. **Kıyafet sadakati.** gpt-image kıyafetin baskısını/rengini FASHN kadar
+   koruyor mu — bilinmiyor.
+4. **rembg yoksa** yalnızca dikey bant korunuyor; bant içindeki duvar
+   korunmuyor (testi var, sınır olarak kayıtlı).
+5. **Tohum yok.** gpt-image'in seed parametresi yok; sonuçlar tekrarlanabilir
+   değil. `tryon-ab --seed` gibi ölçüm araçları bu sağlayıcıda anlamsız.
+6. **Arayüzdeki maliyet tahmini** FASHN rakamlarını gösteriyor
+   (`render.CALL_COST_USD`, düzenleme kredisi). Foundry token üzerinden
+   faturalıyor; tahmin Foundry için yanlış. Düzeltilmedi.
+7. **Kota.** Foundry'nin varsayılanı dağıtım başına dakikada 5 görsel.
+   Toplu `build-layers` buna takılabilir.
+
+**Ölçüm önerisi:** bir anahtar bulunduğunda tek kıyafetle başla, ham çıktıya
+ve katmana gözle bak, sonra aynı kıyafetin FASHN katmanıyla yan yana
+karşılaştır. §25'teki `layer-ab` mantığı burada da geçerli.
+
+⚠ `build-layers --id N --provider foundry` bunun için UYGUN DEĞİL: hazır
+katmanı atlıyor, `--force` eklenirse **çalışan FASHN katmanının üzerine
+yazıyor** (§47.7'deki kazanın aynısı). Karşılaştırma dolaba yazmadan
+yapılmalı — §50'deki duman testi betiği tam olarak bunu yapıyor.
+(`--provider foundry` ayrıca argparse'ta tanımlı değildi, belgedeki komut ilk
+denemede hata verirdi; düzeltildi ve testi var.)
+
+---
+
+## 49. Oturum sonu (Ekim 2026) — nerede kaldık, sıradaki iş
+
+### 49.1 Staj teslimi: TAMAMLANDI
+
+Microsoft AI Innovators yaz programı (ikinci yıl) için proje teslim edildi:
+
+- GitHub reposu public: https://github.com/egeardakoksoy/virtual-wardrobe
+- "Ne öğrendim" videosu YouTube'da: https://youtu.be/9aV-CfE8-BE
+- Bitirme sertifikası alındı (sertifika tarihi 17.8.2026)
+- LinkedIn paylaşım metni hazırlandı (TR + EN)
+
+Programın video talebi **2-3 dakika**ydı (organizatörün iki ayrı mesajı);
+"5 dakikalık bitirme sunumu" ifadesi eski canlı sunum formatına ait.
+
+İletişim bilgileri, taslaklar ve özel notlar proje kökündeki
+`OTURUM_NOTLARI.md`'de — o dosya **git'e girmiyor**.
+
+### 49.2 Git durumu
+
+Foundry desteği commit'lendiği anda (8 Ekim 2026) durum buydu — güncelini
+`git log --oneline origin/main..HEAD` gösterir:
+
+```
+GitHub (origin/main)   d4818ef  Aksesuar denendi, ölçüldü, geri alındı
+yerel, push edilmedi   65c88c8  Diyagramda yerel kod ile dış API'yi ayır
+yerel, push edilmedi   d0ffcd1  g16 chino: hayalet konturlu sürümü geri al   ← etiket: foundry-oncesi
+yerel, push edilmedi   (sonraki) Microsoft Foundry desteği (§48, §50)
+```
+
+**Yedek:** Foundry'siz son çalışan sürüm `foundry-oncesi` etiketinde
+(d0ffcd1). Hiçbir şey silinmedi. O hâle dönmek gerekirse
+`git switch -c foundry-oncesi-dal foundry-oncesi` — ayrı bir dal açar, main'e
+dokunmaz.
+
+Doğrulama: 394 test geçiyor, mevcut kurulum (FASHN + birinci taraf Claude)
+davranışı değişmedi — `doctor` ve sağlayıcı seçimi kontrol edildi.
+
+### 49.3 Açık iş: Foundry talebi (§48, §50)
+
+Microsoft'tan bir çalışan projeyi kendi Foundry ortamında çalıştırmak istedi.
+Kod yazıldı, commit'lendi ve sahte istemciyle test edildi; **gerçek çağrıyla
+hiç denenmedi** — kendi Azure hesabımızda hiçbir güncel modele kota çıkmadı
+(§50).
+
+Sırayla yapılacaklar:
+
+1. Push — talep sahibi repoyu çekecek, mailden ÖNCE gitmeli.
+2. Talep sahibine cevap gönder — taslak `OTURUM_NOTLARI.md`'de. Özeti: Foundry
+   desteği eklendi ama kota yüzünden kendimiz göremedik, onun denemesi ilk
+   gerçek çalıştırma olacak; Foundry yürümezse projeyi şu anki hâliyle (FASHN +
+   Claude) denemesi için ayrı, sonradan iptal edilecek test anahtarları
+   teklif ediliyor.
+3. Erişim ya da kota gelirse §50.3'teki duman testini çalıştır (önce
+   `--sadece-claude`, ucuz olan).
+
+### 49.4 Çalışma kuralları (bu projede kazanılmış)
+
+- **Hem sayı hem gözle ölç.** Göz sayıyı veto edebilir. Bir sayının yönü
+  (arttı/azaldı) iyi mi kötü mü olduğunu tek başına söylemez (§47.7).
+- **`--reextract`'i asla tüm dolaba çalıştırma.** `--id N` ile tek tek ve her
+  birine gözle bak. Katmanların hangi kod sürümüyle üretildiği tutulmuyor (§47.7).
+- **Görüntüyü "daha iyi" diye seçerken kadrajın TAMAMINA bak** — bir bölgedeki
+  bariz kusur başka bölgedekini gizliyor (§47.8).
+- **Filtre eklerken tetiklendiğini ölç** — etkisiz filtre, olmayan filtreden
+  tehlikelidir (§44.8). §48'deki kontrol deneyi bunun son örneği.
+- **Ölçüm dairesel olmasın** — aynı eşikle silip aynı eşikle ölçme (§46.2).
+- Yedekler: `data/layers_yedek_kapi_20260813_1655/` çoğu katmanın çalışan
+  sürümünü tutuyor; `data/layer_surumleri/` deney sürümlerini.
+
+### 49.5 Sıradaki adaylar (öncelik sırasıyla)
+
+1. Foundry'yi gerçek çağrıyla ölçmek (§48.5, §50.3) — erişime ya da kotaya bağlı.
+2. Arayüzdeki maliyet tahminini sağlayıcıya göre göstermek (§48.5 madde 6).
+3. Faz 3 — kombin önerisi: öznitelikler (`warmth`, `formality`) zaten
+   dolapta; kural filtresi → Lab renk uyumu → LLM seçimi (bkz. §9).
+4. Aksesuarı yeniden denemek: alt türe göre bölge bandı ÇALIŞIYORDU (§47);
+   eksik olan kalibrasyon ve katman sürümü takibi.
+5. Katman sürüm takibi: hangi katmanın hangi kod sürümüyle üretildiğini
+   kaydetmek (§47.7'deki kazanın kök sebebi).
+
+---
+
+## 50. Kendi Azure hesabıyla Foundry denemesi (8 Ekim 2026) — kota duvarı
+
+### 50.1 Ne yapıldı, ne oldu
+
+Gerçek çağrıyla ölçmek için kullandıkça öde (pay-as-you-go) bir Azure
+aboneliği açıldı, 10 $'lık bütçe uyarısı kuruldu (%50 / %100), Foundry'de bir
+proje oluşturuldu. `.env`'e kaynak adı ve dağıtım adları yazıldı; **anahtar
+satırı boş**, yani uygulamanın davranışı değişmedi (`doctor`: "anahtar yok").
+
+**Hiçbir güncel model dağıtılamadı.** `claude-opus-5-5` (sürüm 1 ve 2, Global
+Standard) ve `gpt-image-2` "Yetersiz kota" verdi; kota isteme seçeneği yalnızca
+GPT-4o gibi eski modellerde çıkıyor. Microsoft'un tablosu kullandıkça öde için
+Opus 5.5 varsayılanını dakikada 40 istek gösteriyor — yeni abonelik pratikte
+sıfırla başladı. Forumdaki benzer vakalarda yol elle kota isteği
+(aka.ms/oai/stuquotarequest); onay garantili değil.
+
+Hesap açarken çıkan engeller (tekrar gerekirse): sanal ve ön ödemeli kart
+kabul edilmiyor; kayıtta seçilen ülke kartın fatura ülkesiyle aynı olmalı;
+kartta internet ve yurt dışı işlemler açık olmalı. Art arda denemeler "Hesap
+oluşturma engellendi" (dolandırıcılık koruması) tetikledi — çözüm yeni hesap
+açmak yerine mevcut Microsoft hesabıyla oturum açmaktı. Destek planında
+"Teknik destek yok" seçildi (diğerleri aylık 24–843 €).
+
+### 50.2 Belgelerden öğrenilenler (Ekim 2026)
+
+| konu | bulgu |
+|---|---|
+| Abonelik türü | Öğrenci, ücretsiz deneme ve kredi tabanlı aboneliklerde Claude **yok**. Ücretsiz kredi Marketplace'e (Claude) geçmiyor, Claude ücreti karttan çekiliyor |
+| Bölge | Opus 5.5 (Global Standard): ABD bölgeleri + Sweden Central. gpt-image-2: eastus2, westus3, polandcentral, swedencentral, uaenorth. **İkisi birden: swedencentral, eastus2, westus3** |
+| gpt-image-2 | Genel kullanımda (GA), başvuru gerekmiyor; gpt-image-1.x başvuruyla açılıyor |
+| Düzenleme rotası | Belgeler `images/edits`'i deployments rotasıyla gösteriyor: `/openai/deployments/<dağıtım>/images/edits?api-version=2025-04-01-preview`. Bizim varsayılan v1. §48.5 madde 1 hâlâ açık, ama belgeli yedek kod değişmeden `.env`'den kurulabiliyor (`FOUNDRY_OPENAI_BASE_URL` + `FOUNDRY_OPENAI_API_VERSION`) |
+| Sonnet 5.5 | Foundry'de yapılandırılmış çıktı (bizim JSON şeması) **yalnızca** `thinking={"type":"adaptive"}` ile. `vision.py` thinking göndermiyor → büyük ihtimalle hata verir. Opus 5.5'te bu kısıt yok. Sonnet'e geçilecekse (yarı fiyat, iki kat hız) önce çağrıya adaptive thinking eklenmeli |
+| Parametreler | Opus/Sonnet 5.x'te `temperature` ve `top_k` desteklenmiyor — `vision.py` ikisini de göndermiyor (kontrol edildi) |
+| Fiyat | Opus 5.5: girdi 4 $, çıktı 20 $ / 1M token, Foundry'de aynı liste fiyatı → kıyafet başına ~2-3 sent. gpt-image-2'nin resmî Azure rakamı doğrulanamadı; üçüncü taraf: 1024×1536 yüksek kalite görsel başına ~0,17 $ |
+
+### 50.3 Duman testi betiği — hazır, gerçek çağrıyla çalıştırılmadı
+
+Repoda değil (kullanıcı repoya test komutu eklenmesini istemedi); yerelde
+`data/foundry_deneme/foundry_duman_testi.py` — `data/` git'e girmiyor.
+
+```
+python data/foundry_deneme/foundry_duman_testi.py 23 --sadece-claude   # ~3 sent
+python data/foundry_deneme/foundry_duman_testi.py 23                   # + görüntü, ~0,25 $
+```
+
+- Dolaba ve `data/layers/`'a yazmıyor; çıktılar `data/foundry_deneme/g<ID>_<zaman>/`.
+- Claude'u bir kez çağırıp kayıtlı özniteliklerle yan yana koyuyor.
+  `extract_attributes` hatada sessizce mock'a düştüğü için çağrıyı sarıp asıl
+  hatayı gösteriyor.
+- gpt-image'i bir kez çağırıyor ve **ham (kısıtsız) çıktıyı da yakalıyor**:
+  aynı çıktıdan kısıtlamalı ve kısıtlamasız iki katman çıkıyor → §48.3'teki
+  kontrol deneyinin gerçek modelle yapılanı. FASHN katmanıyla aynı üç sayı
+  (kaplama, sızıntı, dış fark) + bant üstünde (baş/omuz) kayma ölçüsü — §48.5
+  madde 2 için.
+- v1 rotası 404 verirse belgelerdeki iki rotayı deniyor, çalışanı yazıyor
+  (madde 1). Token sayısını ve tahmini maliyeti basıyor (madde 6).
+
+Kuru çalıştırma (ayar yokken): çağrı yapmadan duruyor; ölçüm fonksiyonları
+doğrulandı — yapay 3/5 px kaydırma doğru ölçüldü. FASHN #23 referansı:
+kaplama %22.1, sızıntı 3.767 px, dış fark %9.23. FASHN çıktısı 848×1264,
+base 864×1296: yeniden boyutlandırma bant üstünde ~4 px "kayma" gibi
+görünüyor, gerçek poz kayması değil. gpt-image aynı en-boy oranında
+(1024×1536) üretiyor, bu etki onda olmayacak.
+
+Aktif mankende (#1) yeşil çıkarım varyantı yok; üretim de gerçek fotoğrafı
+kullanıyor — test üretimle aynı koşulda.

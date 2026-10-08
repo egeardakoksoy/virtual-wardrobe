@@ -3,12 +3,19 @@ pillow>=10.0
 numpy>=1.24
 
 # --- VLM (öznitelik çıkarımı) ---
-anthropic>=0.40
+# 0.111: Microsoft Foundry istemcisi (AnthropicFoundry) bu sürümde doğrulandı.
+anthropic>=0.111
 python-dotenv>=1.0
 
 # --- Sanal deneme / katman üretimi (Faz 1) ---
 # Yoksa hat çökmez: mock sağlayıcıya düşer, sahte katman üretir.
 fal-client>=0.5
+
+# --- Microsoft Foundry görüntü modeli (opsiyonel) ---
+# Yalnızca FOUNDRY_IMAGE_DEPLOYMENT tanımlıysa kullanılıyor. Kurulu değilse
+# hat çökmez: Foundry sağlayıcısı "kullanılamaz" sayılır. images.edit'in çok
+# görselli çağrısı 3.26'da doğrulandı.
+openai>=3.0
 
 # --- Test ---
 pytest>=8.0

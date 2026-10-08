@@ -34,8 +34,19 @@ def isolated_env(tmp_path, monkeypatch):
     # §6.1 #8'in aynısı: izolasyon eksikse testin ne ölçtüğünü bilemezsin.
     #
     # Anahtar gereken testler onu kendisi monkeypatch'liyor.
+    #
+    # Foundry değişkenleri de aynı sebeple: bir geliştiricinin .env'inde
+    # Foundry görüntü dağıtımı tanımlıysa `get_provider()` mock yerine foundry
+    # döner ve sağlayıcı sırası testleri ortama bağlı hâle gelirdi.
     for key in ("ANTHROPIC_API_KEY", "FAL_KEY", "FASHN_API_KEY",
-                "REPLICATE_API_TOKEN", "VTON_PROVIDER"):
+                "REPLICATE_API_TOKEN", "VTON_PROVIDER",
+                "FOUNDRY_RESOURCE", "FOUNDRY_API_KEY",
+                "FOUNDRY_CLAUDE_DEPLOYMENT", "FOUNDRY_CLAUDE_TRANSLATE_DEPLOYMENT",
+                "FOUNDRY_IMAGE_DEPLOYMENT", "FOUNDRY_IMAGE_SIZE",
+                "FOUNDRY_IMAGE_QUALITY", "FOUNDRY_OPENAI_BASE_URL",
+                "FOUNDRY_OPENAI_API_VERSION",
+                "ANTHROPIC_FOUNDRY_API_KEY", "ANTHROPIC_FOUNDRY_RESOURCE",
+                "ANTHROPIC_FOUNDRY_BASE_URL"):
         monkeypatch.delenv(key, raising=False)
 
     raw = tmp_path / "raw"

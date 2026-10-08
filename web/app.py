@@ -628,7 +628,7 @@ def _arka_planda(job_id: str, is_fn) -> None:
     threading.Thread(target=sar, daemon=True).start()
 
 
-RENDER_PROVIDERS = ("fal", "fashn", "gemini")
+RENDER_PROVIDERS = ("fal", "fashn", "gemini", "foundry")
 
 
 def _render_provider(payload: dict):

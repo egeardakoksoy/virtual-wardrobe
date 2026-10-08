@@ -19,14 +19,16 @@ kategoriler `UNSUPPORTED_CATEGORIES` içinde ve katman üretimi onları atlıyor
 """
 from __future__ import annotations
 
+import base64
 import io
 import os
 from pathlib import Path
 from typing import Protocol
 
-from PIL import Image
+import numpy as np
+from PIL import Image, ImageFilter
 
-from wardrobe import secrets
+from wardrobe import foundry, secrets
 from wardrobe.imageutil import downscale, load_any
 
 FAL_TRYON_ENDPOINT = "fal-ai/fashn/tryon/v1.6"
@@ -770,6 +772,26 @@ EDIT_INSTRUCTIONS: dict[str, str] = {
 }
 
 
+def giydirme_talimati(category: str) -> str:
+    """Genel amaçlı düzenleyiciler için giydirme talimatı (Gemini ve Foundry).
+
+    Talimat "neyi değiştir"den çok "neyi DEĞİŞTİRME" üzerine kurulu.
+    Düzenleyicinin bilinen kusuru kıyafet dışını da yeniden çizmesi; onu API
+    tarafında kısıtlayan bir alan yok, elimizdeki kaldıraç prompt — ve
+    Foundry'de ayrıca `bolgeye_kisitla`.
+    """
+    hedef = EDIT_INSTRUCTIONS.get(category, EDIT_INSTRUCTIONS["ust"])
+    return (
+        "Using the first image as the person and the second image as the "
+        f"garment, replace {hedef} with the garment from the second image. "
+        "Keep the garment's exact colour, print, texture and cut. "
+        "Do not change the person's face, hair, skin, body shape, pose, "
+        "hands, the background or the lighting. "
+        "Keep the framing and image dimensions identical. "
+        "Photorealistic result, natural fabric folds and shadows."
+    )
+
+
 class GeminiEditProvider:
     """Genel amaçlı düzenleyici ile giydirme — FASHN'ın yetersiz kaldığı yerler için.
 
@@ -816,19 +838,7 @@ class GeminiEditProvider:
         return fal_client
 
     def prompt_for(self, category: str) -> str:
-        hedef = EDIT_INSTRUCTIONS.get(category, EDIT_INSTRUCTIONS["ust"])
-        # Talimat "neyi değiştir"den çok "neyi DEĞİŞTİRME" üzerine kurulu.
-        # Düzenleyicinin bilinen kusuru kıyafet dışını da yeniden çizmesi; onu
-        # API tarafında kısıtlayan bir alan yok, elimizdeki tek kaldıraç prompt.
-        return (
-            "Using the first image as the person and the second image as the "
-            f"garment, replace {hedef} with the garment from the second image. "
-            "Keep the garment's exact colour, print, texture and cut. "
-            "Do not change the person's face, hair, skin, body shape, pose, "
-            "hands, the background or the lighting. "
-            "Keep the framing and image dimensions identical. "
-            "Photorealistic result, natural fabric folds and shadows."
-        )
+        return giydirme_talimati(category)
 
     def try_on(
         self, model_image: Path, garment_image: Path, category: str
@@ -870,6 +880,241 @@ class GeminiEditProvider:
         raise RuntimeError(
             "gemini sağlayıcısı manken üretmiyor — `--provider fal` kullan"
         )
+
+
+# --------------------------------------------------------------------------
+# foundry — Microsoft Foundry'deki görüntü modeli (gpt-image ailesi)
+# --------------------------------------------------------------------------
+
+# Modelin değiştirmesine İZİN VERİLEN bölgenin kişinin silüetinden ne kadar
+# taşabileceği (tuval genişliğinin oranı). Cömert tutuldu: yeni kıyafet
+# base'in kıyafetinden geniş olabilir (bol ceket, uzun kol); dar bir pay
+# kıyafetin kenarını keserdi. Duvarın değişmesini engellemek için yeterli.
+FOUNDRY_KISI_PAYI = 0.06
+
+# Bölge sınırının yumuşatma yarıçapı (px). Sert bir sınır, model çıktısıyla
+# base arasında görünür bir dikiş bırakırdı.
+FOUNDRY_YUMUSATMA_PX = 6.0
+
+# Kişi maskesi bu oranda küçültülüp genişletiliyor (bkz. _genislet).
+_GENISLETME_KUCULTME = 8
+
+# Düzenleme sohbetinde (Faz 6) talimata eklenen koruma cümlesi. Bölge
+# kısıtlaması burada YOK — "hafifçe sola dön" pozu bilerek değiştiriyor —
+# o yüzden koruma yalnızca talimatla isteniyor.
+DUZENLEME_KORUMA_EKI = (
+    " Apply only this change. Keep the person's identity, face, hair, body "
+    "shape, the garments' colours, prints and fit, the background and the "
+    "framing unchanged."
+)
+
+
+def _genislet(maske: np.ndarray, r: int) -> np.ndarray:
+    """İkili maskeyi ~r piksel genişletir — scipy gerektirmeden ve hızlı.
+
+    Tam çözünürlükte büyük çekirdekli `MaxFilter` çok yavaş (maliyet çekirdek
+    boyutunun karesiyle büyüyor). Maske küçültülüp genişletiliyor ve geri
+    büyütülüyor. Burası cömert bir güvenlik payı; piksel hassasiyeti gerekmiyor.
+    """
+    if r <= 0:
+        return maske
+    h, w = maske.shape
+    k = _GENISLETME_KUCULTME
+    kucuk = Image.fromarray((maske * 255).astype(np.uint8), mode="L").resize(
+        (max(1, w // k), max(1, h // k)), Image.BILINEAR)
+    kucuk = kucuk.filter(ImageFilter.MaxFilter(2 * max(1, round(r / k)) + 1))
+    return np.asarray(kucuk.resize((w, h), Image.BILINEAR)) > 0
+
+
+def bolgeye_kisitla(cikti: Image.Image, base_path: Path, category: str) -> Image.Image:
+    """Genel amaçlı düzenleyicinin çıktısını kıyafetin olabileceği bölgeyle sınırlar.
+
+    NEDEN GEREKLİ — ölçülmüş bir kısıt (bkz. GeminiEditProvider): genel amaçlı
+    düzenleyiciler kıyafetin DIŞINDAKİ pikselleri de yeniden üretiyor; yüz,
+    duvar, poz milimetrik kayıyor. Fark tabanlı katman çıkarımı "kıyafet dışı
+    sabit kalır" varsayımına dayandığı için Gemini bu yüzden katman
+    üretiminden dışlanmıştı.
+
+    Burada o varsayımı modelden BEKLEMİYORUZ, kendimiz SAĞLIYORUZ: kıyafetin
+    fiziksel olarak bulunabileceği bölgenin (kategori bandı ∩ genişletilmiş
+    kişi silüeti) dışında base'in kendi pikselleri geri konuyor. Fark orada
+    tanım gereği sıfır.
+
+    Yan fayda: tek kıyafet görünümünde (§38) kullanıcı ham çıktıyı görüyor;
+    bölge dışı base olduğu için yüzü ve odası birebir kendi fotoğrafı.
+
+    ⚠ ÇÖZMEDİĞİ ŞEY: model POZU kaydırırsa kıyafet bölge içinde de kaymış bir
+    gövdeye çiziliyor; bindirmede birkaç piksellik hizasızlık olarak görünür.
+    Bu yalnızca gerçek çağrılarla ölçülebilir — ölçülmedi.
+    """
+    from wardrobe.cutout import person_mask_for
+    # İşlev içinde: layers modülü vton'u içe aktarıyor, üst düzeyde döngü olurdu.
+    from wardrobe.layers import region_band
+
+    base = load_any(base_path).convert("RGB")
+    out = cikti.convert("RGB")
+    if out.size != base.size:
+        out = out.resize(base.size, Image.LANCZOS)
+    w, h = base.size
+
+    ust, alt = region_band(category)
+    bolge = np.zeros((h, w), dtype=bool)
+    bolge[int(ust * h):int(np.ceil(alt * h))] = True
+
+    # Kişi maskesi rembg gerektiriyor; yoksa yalnızca dikey bant kalıyor —
+    # yüz ve bacaklar yine korunuyor, bant içindeki duvar korunmuyor.
+    kisi = person_mask_for(base_path)
+    if kisi is not None and kisi.shape == (h, w) and kisi.any():
+        genis = _genislet(kisi, int(FOUNDRY_KISI_PAYI * w))
+        # Güvenlik freni: kesişim boşsa (yanlış maske) bandla yetin. Boş bölge,
+        # base'i aynen döndürür ve katman sessizce boş çıkardı.
+        if (bolge & genis).any():
+            bolge &= genis
+
+    alfa = Image.fromarray((bolge * 255).astype(np.uint8), mode="L")
+    if FOUNDRY_YUMUSATMA_PX > 0:
+        alfa = alfa.filter(ImageFilter.GaussianBlur(FOUNDRY_YUMUSATMA_PX))
+    a = (np.asarray(alfa, dtype=np.float32) / 255.0)[:, :, None]
+    karisim = (np.asarray(out, dtype=np.float32) * a
+               + np.asarray(base, dtype=np.float32) * (1.0 - a))
+    return Image.fromarray(karisim.round().clip(0, 255).astype(np.uint8), mode="RGB")
+
+
+def _png_parcasi(path: str | Path, ad: str) -> tuple[str, bytes, str]:
+    """Görseli multipart için (dosya adı, PNG baytları, tür) üçlüsüne çevirir.
+
+    Şeffaf arka planlı kıyafet kesimi BEYAZ zemine oturtuluyor: ürün
+    fotoğraflarının standardı bu, ve modelin şeffaflığı nasıl yorumlayacağını
+    tahmin etmekten daha güvenli.
+    """
+    img = downscale(load_any(path), VTON_MAX_PX)
+    if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+        rgba = img.convert("RGBA")
+        zemin = Image.new("RGB", rgba.size, (255, 255, 255))
+        zemin.paste(rgba, mask=rgba.split()[3])
+        img = zemin
+    else:
+        img = img.convert("RGB")
+    buf = io.BytesIO()
+    img.save(buf, "PNG")
+    return ad, buf.getvalue(), "image/png"
+
+
+def _cevaptan_gorsel(cevap) -> Image.Image:
+    """Görüntü API yanıtından PIL görseli. gpt-image ailesi yalnızca base64 dönüyor."""
+    veriler = getattr(cevap, "data", None) or []
+    if not veriler:
+        raise RuntimeError("Foundry yanıtında görsel yok")
+    veri = veriler[0]
+    b64 = getattr(veri, "b64_json", None)
+    if b64:
+        return Image.open(io.BytesIO(base64.b64decode(b64))).convert("RGB")
+    url = getattr(veri, "url", None)
+    if url:
+        return _download_image(url)
+    raise RuntimeError("Foundry yanıtında ne base64 ne URL var")
+
+
+class FoundryImageProvider:
+    """Microsoft Foundry'deki bir görüntü modeliyle giydirme (gpt-image ailesi).
+
+    NEDEN VAR: projeyi kendi Foundry ortamında uçtan uca çalıştırmak isteyen
+    biri FASHN / fal / Anthropic anahtarlarına takılıyordu. Foundry'de doğrudan
+    bir sanal deneme modeli yok; gpt-image ailesi ise birden fazla girdi
+    görseliyle düzenleme yapabiliyor — kişi fotoğrafı + kıyafet + talimat.
+
+    Bu, GeminiEditProvider ile AYNI türden bir model: genel amaçlı düzenleyici.
+    Gemini katman üretiminden dışlanmıştı çünkü kıyafet dışını yeniden
+    çiziyordu. Buradaki fark `bolgeye_kisitla`: kıyafet dışı model çıktısından
+    değil base'den geliyor — o yüzden `supports_layers = True`.
+
+    ⚠ ÖLÇÜLMEDİ: bu sağlayıcıyla hiçbir gerçek çağrı yapılmadı. Kod Microsoft'un
+    belgelediği arayüze göre yazıldı ve sahte istemciyle test edildi; kıyafet
+    sadakati, poz kayması ve katman kalitesi ilk gerçek çalıştırmada ölçülmeli.
+    FASHN tanımlıysa o önce seçiliyor (bkz. get_provider).
+    """
+
+    name = "foundry"
+    supports_text_to_image = True
+    supports_layers = True
+
+    def __init__(self, seed: int | None = None):
+        # gpt-image ailesinin tohum parametresi yok. Arayüz uyumu için kabul
+        # ediliyor ama gönderilmiyor — sonuçlar bu yüzden tekrarlanabilir değil.
+        self.seed = seed
+
+    def available(self) -> bool:
+        if not foundry.image_ready():
+            return False
+        try:
+            import openai  # noqa: F401
+            return True
+        except ImportError:
+            return False
+
+    def supports_category(self, category: str) -> bool:
+        # Genel amaçlı düzenleyici: kategori bir API alanı değil, talimatın parçası.
+        return True
+
+    def credits(self) -> int:
+        # Foundry kredi değil token üzerinden faturalıyor. Arayüz "kaç çağrı"
+        # gösterebilsin diye çağrı başına 1.
+        return 1
+
+    def _client(self):
+        from openai import OpenAI
+
+        surum = foundry.openai_api_version()
+        return OpenAI(
+            api_key=foundry.api_key(),
+            base_url=foundry.openai_base_url(),
+            # v1 rotası standart Bearer başlığını kabul ediyor; `api-key` ise
+            # Azure'un klasik başlığı. İkisini birden göndermek, ilk çağrının
+            # kaynak türünden bağımsız çalışma ihtimalini artırıyor.
+            default_headers={"api-key": foundry.api_key() or ""},
+            default_query={"api-version": surum} if surum else None,
+        )
+
+    def _istek(self, **ek) -> dict:
+        # `input_fidelity` BİLEREK yok: gpt-image-2.5 bu alanla 400 dönüyor
+        # (belgelerdeki bir tutarsızlık) ve hangi modelin dağıtıldığını bilmiyoruz.
+        return {
+            "model": foundry.image_deployment(),
+            "size": foundry.image_size(),
+            "quality": foundry.image_quality(),
+            "output_format": "png",
+            "n": 1,
+            **ek,
+        }
+
+    def try_on(
+        self, model_image: Path, garment_image: Path, category: str
+    ) -> Image.Image:
+        cevap = self._client().images.edit(**self._istek(
+            image=[_png_parcasi(model_image, "kisi.png"),
+                   _png_parcasi(garment_image, "kiyafet.png")],
+            prompt=giydirme_talimati(category),
+        ))
+        return bolgeye_kisitla(_cevaptan_gorsel(cevap), Path(model_image), category)
+
+    def edit(
+        self, image: Path, prompt: str, *, seed: int | None = None
+    ) -> Image.Image:
+        """Düzenleme sohbeti (Faz 6): var olan sahneyi talimatla değiştirir."""
+        if not prompt.strip():
+            raise ValueError("düzenleme talimatı boş olamaz")
+        cevap = self._client().images.edit(**self._istek(
+            image=_png_parcasi(image, "sahne.png"),
+            prompt=prompt.strip() + DUZENLEME_KORUMA_EKI,
+        ))
+        out = _cevaptan_gorsel(cevap)
+        hedef = load_any(image).size
+        return out if out.size == hedef else out.resize(hedef, Image.LANCZOS)
+
+    def text_to_image(self, prompt: str, size: tuple[int, int]) -> Image.Image:
+        cevap = self._client().images.generate(**self._istek(prompt=prompt))
+        out = _cevaptan_gorsel(cevap)
+        return out if out.size == tuple(size) else out.resize(size, Image.LANCZOS)
 
 
 # --------------------------------------------------------------------------
@@ -940,7 +1185,8 @@ class MockProvider:
 # --------------------------------------------------------------------------
 
 _PROVIDERS = {"fal": FalProvider, "fashn": FashnProvider,
-              "gemini": GeminiEditProvider, "mock": MockProvider}
+              "gemini": GeminiEditProvider, "foundry": FoundryImageProvider,
+              "mock": MockProvider}
 
 
 def supports_layers(provider) -> bool:
@@ -971,7 +1217,12 @@ def supports_category(provider, category: str) -> bool:
 def get_provider(name: str | None = None) -> VtonProvider:
     """Sağlayıcıyı seçer.
 
-    Sıra: açık isim → VTON_PROVIDER → **fashn** (varsa) → fal (varsa) → mock.
+    Sıra: açık isim → VTON_PROVIDER → **fashn** (varsa) → fal (varsa)
+    → foundry (varsa) → mock.
+
+    FOUNDRY SONDAN BİR ÖNCE: o genel amaçlı bir düzenleyici ve katman
+    kalitesi ölçülmedi; FASHN ise bu iş için eğitilmiş ve ölçülmüş. Yalnızca
+    Foundry tanımlı bir ortamda (FASHN/fal anahtarı yok) otomatik seçiliyor.
 
     FASHN ÖNCE GELİYOR, ölçümle: §25'te tryon-max hem sızıntıyı 3.5 kat
     düşürdü hem rengi 1.7 kat daha doğru üretti, hem de v1.6'nın yapamadığı
@@ -992,7 +1243,19 @@ def get_provider(name: str | None = None) -> VtonProvider:
             )
         return _PROVIDERS[name]()
 
-    for aday in (FashnProvider(), FalProvider()):
+    for aday in (FashnProvider(), FalProvider(), FoundryImageProvider()):
         if aday.available():
             return aday
     return MockProvider()
+
+
+def get_edit_provider():
+    """Düzenleme sohbeti (Faz 6) için sağlayıcı: FASHN, yoksa Foundry.
+
+    Hiçbiri kullanılamıyorsa FASHN dönüyor — çağıran taraf `available()`
+    kontrolünde anlamlı bir hata veriyor ("hangi anahtar eksik").
+    """
+    for aday in (FashnProvider(), FoundryImageProvider()):
+        if aday.available():
+            return aday
+    return FashnProvider()

@@ -858,7 +858,7 @@ def from_photo(photo_path: str | Path, db_path=None, *, name: str | None = None)
 
 def generate(db_path=None, *, provider=None, style: str = DEFAULT_STYLE,
              name: str | None = None) -> dict:
-    """fal ile base manken üretir (tek seferlik, ~$0.03).
+    """Görsel üretebilen sağlayıcıyla base manken üretir (fal ya da Foundry).
 
     Args:
         style: "person" (önerilen — VTON modelleri insan bekliyor) veya
@@ -880,7 +880,8 @@ def generate(db_path=None, *, provider=None, style: str = DEFAULT_STYLE,
     # kullanıcının yapması gereken şeyi söylemiyor. Asıl eksiği raporla.
     if not provider.available() or not provider.supports_text_to_image:
         if not secrets.has("FAL_KEY"):
-            reason = "FAL_KEY yok — .env'e ekle"
+            reason = ("FAL_KEY yok — .env'e ekle (ya da Foundry görüntü "
+                      "dağıtımı: FOUNDRY_IMAGE_DEPLOYMENT)")
         elif provider.name == "mock":
             reason = 'fal-client kurulu değil — pip install fal-client'
         else:

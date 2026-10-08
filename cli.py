@@ -28,11 +28,11 @@ from db import count_by_category, delete_garment, get_garment, init_db, list_gar
 from wardrobe import layers, mannequin, secrets, vton
 from wardrobe.cutout import METHODS as CUTOUT_METHODS, has_rembg
 from wardrobe.ingest import IngestError, add_folder, add_garment
-from wardrobe.vision import MODEL, has_api_key
+from wardrobe.vision import active_label
 
 
 def _source_banner() -> str:
-    vlm = f"Claude ({MODEL})" if has_api_key() else "MOCK (ANTHROPIC_API_KEY yok)"
+    vlm = active_label()
     seg = "rembg" if has_rembg() else "flood (yedek)"
     return f"Öznitelik: {vlm} | Arka plan: {seg}"
 
@@ -156,6 +156,40 @@ def cmd_stats(args) -> int:
     return 0
 
 
+def _doctor_foundry() -> None:
+    """Microsoft Foundry durumu — yalnızca bir Foundry ayarı varsa basılır.
+
+    Kaynak ve dağıtım adları sır değil, açık yazılıyor: yanlış dağıtım adı en
+    sık hata ve maskeli bir değerle teşhis edilemez. Anahtar yukarıda zaten
+    maskeli raporlandı.
+    """
+    from wardrobe import foundry
+
+    s = foundry.summary()
+    if not (s["resource"] or s["key_present"] or s["claude_deployment"]
+            or s["image_deployment"]):
+        return
+
+    print("\nMicrosoft Foundry:")
+    print(f"  {'✓' if s['resource'] else '✗'} kaynak            "
+          f"{s['resource'] or 'yok → FOUNDRY_RESOURCE'}")
+    print(f"  {'✓' if s['key_present'] else '✗'} anahtar           "
+          f"{'var' if s['key_present'] else 'yok → FOUNDRY_API_KEY'}")
+    print(f"  {'✓' if s['claude_ready'] else '○'} Claude dağıtımı   "
+          f"{s['claude_deployment'] or 'yok → öznitelik başka kaynaktan'}")
+    print(f"  {'✓' if s['image_ready'] else '○'} görüntü dağıtımı  "
+          f"{s['image_deployment'] or 'yok → sanal deneme başka sağlayıcıda'}")
+    if s["image_ready"]:
+        try:
+            import openai  # noqa: F401
+        except ImportError:
+            print('      ⚠ openai paketi kurulu değil:  pip install openai')
+        print(f"      boyut {s['image_size']} · kalite {s['image_quality']}")
+        print(f"      uç nokta {s['openai_base_url']}")
+    print("  ⚠ Foundry görüntü sağlayıcısı henüz gerçek çağrıyla ÖLÇÜLMEDİ "
+          "(bkz. HANDOFF §48)")
+
+
 def cmd_doctor(args) -> int:
     """Kurulumu ve anahtarları kontrol eder — anahtar DEĞERİ asla yazdırılmaz."""
     ok = True
@@ -185,6 +219,8 @@ def cmd_doctor(args) -> int:
                   "sonu kalmış olabilir.")
             ok = False
         print(f"      {purpose}")
+
+    _doctor_foundry()
 
     print("\nBağımlılıklar:")
     if has_rembg():
@@ -704,9 +740,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_layers = sub.add_parser("build-layers", help="katmanları üret")
     p_layers.add_argument("--id", type=int, help="sadece bu kıyafet")
     p_layers.add_argument("--category", choices=CATEGORY_KEYS)
-    p_layers.add_argument("--provider", choices=("fal", "fashn", "mock"),
+    p_layers.add_argument("--provider", choices=("fal", "fashn", "foundry", "mock"),
                           help="fashn: tryon-max (ÖNERİLEN, §25) | "
-                               "fal: v1.6 | varsayılan: anahtara göre")
+                               "fal: v1.6 | foundry: gpt-image, ÖLÇÜLMEDİ (§48) | "
+                               "varsayılan: anahtara göre")
     p_layers.add_argument("--exclude", type=int, nargs="+", metavar="ID",
                           help="bu kıyafetleri atla (ör: elden çıkarılanlar)")
     p_layers.add_argument("--seed", type=int,
@@ -730,9 +767,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_render.add_argument("--force", action="store_true",
                           help="önbellektekini yok say, yeniden üret")
     p_render.add_argument("--provider",
-                          choices=("fal", "fashn", "gemini", "mock"),
+                          choices=("fal", "fashn", "gemini", "foundry", "mock"),
                           help="fashn: tryon-max (ayakkabı/takı dahil, 4K'ya "
-                               "kadar) | fal: v1.6 | gemini: genel düzenleyici")
+                               "kadar) | fal: v1.6 | gemini: genel düzenleyici | "
+                               "foundry: gpt-image")
     p_render.set_defaults(func=cmd_render)
 
     p_ab = sub.add_parser(

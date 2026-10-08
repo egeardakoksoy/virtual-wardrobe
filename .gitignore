@@ -38,3 +38,10 @@ data_yedek_*/
 
 # Ölçüm görselleri — kişisel fotoğraf içeriyor
 docs/
+
+# Özel oturum notları — iletişim bilgileri ve taslaklar, public repoya girmez
+OTURUM_NOTLARI.md
+
+# Sunum videoları (büyük dosyalar; link olarak paylaşılıyor)
+*.mp4
+*.m4v

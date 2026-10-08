@@ -334,14 +334,19 @@ def apply_edit(key: str, prompt: str, *, provider=None, seed: int | None = None)
         raise EditError(
             "düzenlenecek görüntü yok — önce kombini 'Gerçekçi Göster' ile üret")
 
-    provider = provider or vton.get_provider("fashn")
+    # FASHN önce, yoksa Foundry'nin görüntü modeli (bkz. vton.get_edit_provider).
+    provider = provider or vton.get_edit_provider()
     if not hasattr(provider, "edit"):
         raise EditError(
             f"'{getattr(provider, 'name', '?')}' sağlayıcısı düzenleme yapmıyor "
-            "— FASHN_API_KEY gerekiyor (bkz. python cli.py doctor)"
+            "— FASHN_API_KEY ya da Foundry görüntü dağıtımı gerekiyor "
+            "(bkz. python cli.py doctor)"
         )
     if not provider.available():
-        raise EditError("FASHN_API_KEY yok — .env'e ekle")
+        raise EditError(
+            "düzenleme için sağlayıcı yok — .env'e FASHN_API_KEY ya da "
+            "FOUNDRY_RESOURCE + FOUNDRY_API_KEY + FOUNDRY_IMAGE_DEPLOYMENT ekle"
+        )
 
     ebeveyn = selected(key)
     n = _bos_numara_h(key)
