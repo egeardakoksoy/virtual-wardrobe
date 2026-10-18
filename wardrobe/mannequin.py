@@ -1041,6 +1041,20 @@ def add_from_photo(photo_path: str | Path, name: str | None = None,
     DEĞİL ve olmamalı: manken eklemek bedava, katman üretmek ücretli. İkisini
     tek düğmeye bağlamak kullanıcıyı, ne kadar ödeyeceğini bilmeden ücretli bir
     işleme sokardı.
+
+    SIFIRDAN KURULUM (§56): `init_db` fotoğrafsız bir "base" satırı açıyor.
+    Aktif manken o boş satırsa ilk fotoğraf ONU dolduruyor — yoksa listede
+    görselsiz bir "base" kalıyordu. Fotoğrafı olan hiçbir mankene dokunulmuyor.
     """
-    return from_photo(photo_path, db_path=db_path,
-                      name=(name or "").strip() or _yeni_ad(db_path))
+    ad = (name or "").strip()
+    bos = _row(db_path=db_path)
+    if bos is not None and not bos["image_path"]:
+        if ad and ad != bos["name"]:
+            with connect(db_path) as conn:
+                if conn.execute("SELECT 1 FROM mannequins WHERE name = ? AND id != ?",
+                                (ad, bos["id"])).fetchone():
+                    raise ValueError(f"bu adda bir manken zaten var: {ad}")
+                conn.execute("UPDATE mannequins SET name = ? WHERE id = ?",
+                             (ad, bos["id"]))
+        return from_photo(photo_path, db_path=db_path)
+    return from_photo(photo_path, db_path=db_path, name=ad or _yeni_ad(db_path))

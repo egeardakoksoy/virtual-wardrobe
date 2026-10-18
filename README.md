@@ -8,7 +8,7 @@ tek tıkla **gerçekçi render**'a çeviriyor ve doğal dille düzenliyor
 ![Bir kez öde, sonsuz kez giy](nasil-calisiyor-akis.svg)
 
 **Durum:** Faz 0 ✅ · Faz 1 ✅ · Faz 2 ✅ · Faz 4 ✅ · Faz 6 ✅ · Faz 3 ve 5 açık
-· **435 test geçiyor** (hiçbiri gerçek API çağırmıyor)
+· **439 test geçiyor** (hiçbiri gerçek API çağırmıyor)
 
 Bu README mimariyi ve gerekçelerini anlatıyor. Her kararın arkasındaki **ölçüm
 kayıtları** — çürüyen hipotezler dâhil — [`HANDOFF.md`](HANDOFF.md) içinde
@@ -66,17 +66,14 @@ destekli bir sohbet modeli) hem bir görüntü modeline (sanal deneme, manken
    ```
 
 3. `python cli.py doctor` ile "Microsoft Foundry" bölümünü kontrol et.
-4. Siteyi açmadan önce tam boy bir fotoğrafı manken yap (önden, düz duruş,
-   dar ve sade kıyafet):
-
-   ```bash
-   python cli.py mannequin --from-photo manken.jpg
-   ```
-
-   Yeşil çıkarım base'i kendiliğinden kuruluyor (bkz. `HANDOFF.md` §53).
-   Manken olmadan açılırsa görüntü modeli ilk açılışta bir manken üretiyor
-   (1 ücretli çağrı); sonradan arayüzdeki **+ Yeni manken** ile de eklenebilir.
-5. `Dolabi Ac.bat` (ya da `python cli.py web`) → http://127.0.0.1:8000.
+4. `Dolabi Ac.bat` (ya da `python cli.py web`) → http://127.0.0.1:8000.
+   Veritabanı ilk açılışta kendiliğinden kuruluyor.
+5. Önce **+ Yeni manken** ile tam boy bir fotoğraf yükle (önden, düz duruş,
+   dar ve sade kıyafet), sonra **+ Kıyafet ekle** ile kıyafetleri ekle. Yeşil
+   çıkarım base'i kendiliğinden kuruluyor (bkz. `HANDOFF.md` §53). Sıra önemli:
+   manken fotoğrafı yokken kıyafet eklenirse görüntü modeli önce kendi
+   mankenini üretiyor (1 ücretli çağrı). Komut satırından da olur:
+   `python cli.py mannequin --from-photo manken.jpg`.
 
 **Kod değişikliği gerekmiyor:** MAI ayrı bir API kullanıyor ama dağıtım adı
 `MAI-Image` ile başladığı sürece kendiliğinden seçiliyor (başka ad verdiysen
@@ -123,7 +120,7 @@ Cost Management'ta (bkz. `HANDOFF.md` §54).
 | `python cli.py tryon-ab <id> --seed 42` | VTON ayar karşılaştırması (**ücretli**) |
 | `python cli.py layer-ab <id>` | Katman mimarisi model karşılaştırması (**ücretli**) |
 | `python cli.py web` | Giydirme arayüzünü başlatır |
-| `pytest` | 435 test |
+| `pytest` | 439 test |
 
 > `--reextract` önemli: çıkarım parametrelerini ayarlarken API'ye tekrar ödeme
 > yapmamak için ham VTON çıktıları diskte saklanıyor. Bu projedeki iyileştirmelerin
@@ -381,7 +378,7 @@ wardrobe/
 web/
   app.py               FastAPI uç noktaları
   static/              index.html · app.js · style.css
-tests/                 435 test (21 dosya), API anahtarı gerektirmez
+tests/                 439 test (21 dosya), API anahtarı gerektirmez
 data/                  raw/ cutout/ layers/ mannequins/ renders/ + wardrobe.db
 ```
 
@@ -393,7 +390,7 @@ data/                  raw/ cutout/ layers/ mannequins/ renders/ + wardrobe.db
 pytest
 ```
 
-435 test, ~90 saniye, **hiçbiri gerçek API çağırmıyor.** `conftest.py` her testte
+439 test, ~90 saniye, **hiçbiri gerçek API çağırmıyor.** `conftest.py` her testte
 API anahtarlarını siliyor, varsayılan veritabanını ve veri dizinlerini
 `tmp_path`'e yönlendiriyor. Geliştiricinin `.env`'i yüklü olsa bile testler
 **fatura üretmiyor** ve gerçek dolabı kirletmiyor.

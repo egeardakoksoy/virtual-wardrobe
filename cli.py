@@ -712,8 +712,16 @@ def cmd_web(args) -> int:
 
     from wardrobe.layers import status_counts
 
+    # Sıfırdan kurulumda veritabanı yok: tablolar burada kuruluyor (§56).
+    # Eksikken `Dolabi Ac.bat` "no such table: layers" ile hemen kapanıyordu —
+    # önce başka bir komut çalıştırmış olan (geliştirici) bunu hiç görmedi.
+    init_db()
+
     hazir = status_counts().get("ready", 0)
-    if hazir == 0:
+    if not list_garments():
+        print("Dolap boş. Arayüzde önce '+ Yeni manken' ile tam boy bir fotoğraf,")
+        print("sonra '+ Kıyafet ekle' ile kıyafetlerini yükle.")
+    elif hazir == 0:
         print("⚠  Hazır katman yok — arayüz boş görünecek.")
         print("   Önce: python cli.py build-layers")
     else:

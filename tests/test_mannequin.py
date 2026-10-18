@@ -410,7 +410,7 @@ def test_yesil_taban_kurulamazsa_manken_yine_eklenir(
     info = mannequin.add_from_photo(_koyu_kiyafetli_foto(tmp_path),
                                     name="Yeni", db_path=db_path)
 
-    assert info["created"]
+    assert mannequin.photo_path(info["mannequin_id"], db_path) is not None
     assert not mannequin.extract_base_path(info["mannequin_id"], db_path).is_file()
     assert (str(mannequin.extraction_image(info["mannequin_id"], db_path))
             == info["image_path"])
@@ -454,3 +454,33 @@ def test_tek_bilesende_dokunulmuyor():
     m = np.zeros((300, 200), dtype=bool)
     m[80:220, 60:140] = True
     assert np.array_equal(mannequin._buyuk_bilesenler(m), m)
+
+
+# --- Sıfırdan kurulum: arayüzden ilk manken (§56) ---
+
+def test_sifirdan_ilk_manken_bos_satiri_doldurur(db_path, tmp_path):
+    """`init_db` fotoğrafsız bir "base" açıyor. Arayüzden eklenen ilk fotoğraf
+    onu doldurmalı — yoksa listede görselsiz bir "base" kalıyordu."""
+    mannequin.add_from_photo(_koyu_kiyafetli_foto(tmp_path), db_path=db_path)
+
+    hepsi = mannequin.list_all(db_path)
+    assert [(m["name"], m["has_image"]) for m in hepsi] == [("base", True)]
+
+
+def test_sifirdan_ilk_mankene_verilen_ad_yaziliyor(db_path, tmp_path):
+    mannequin.add_from_photo(_koyu_kiyafetli_foto(tmp_path), name="Ben",
+                             db_path=db_path)
+    assert [m["name"] for m in mannequin.list_all(db_path)] == ["Ben"]
+
+
+def test_fotografli_mankene_dokunulmaz_yeni_manken_acilir(db_path, tmp_path):
+    mannequin.from_photo(_koyu_kiyafetli_foto(tmp_path, "a.png"), db_path=db_path)
+    once = mannequin.active(db_path)
+    ilk_foto = open(once["image_path"], "rb").read()
+
+    info = mannequin.add_from_photo(_koyu_kiyafetli_foto(tmp_path, "b.png"),
+                                    name="İkinci", db_path=db_path)
+
+    assert info["created"] and info["mannequin_id"] != once["id"]
+    assert len(mannequin.list_all(db_path)) == 2
+    assert open(once["image_path"], "rb").read() == ilk_foto

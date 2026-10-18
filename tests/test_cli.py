@@ -113,3 +113,17 @@ def test_requirements_python_multipart_iceriyor():
 
     satirlar = (PROJECT_ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()
     assert any(s.strip().startswith("python-multipart") for s in satirlar)
+
+
+def test_web_sifirdan_kurulumda_veritabanini_kurar(monkeypatch, capsys):
+    """Veritabanı yokken `Dolabi Ac.bat` "no such table: layers" ile hemen
+    kapanıyordu: web komutu tabloları kurmuyordu (§56)."""
+    import web.app
+    import db
+
+    monkeypatch.setattr(web.app, "run", lambda **kw: None)   # sunucu açılmasın
+    assert not db.DB_PATH.exists()
+
+    assert main(["web"]) == 0
+    assert "Yeni manken" in capsys.readouterr().out
+    assert db.DB_PATH.exists()

@@ -8,7 +8,7 @@
 **GitHub:** https://github.com/egeardakoksoy/virtual-wardrobe (public)
 **Durum:** Faz 0 ✅ · Faz 1 ✅ · Faz 2 ✅ · Faz 4 ✅ · Faz 6 ✅ · Faz 3 ertelendi ·
   **Microsoft AI Innovators staj teslimi TAMAMLANDI, sertifika alındı (17.8.2026)**
-**Testler:** 435 geçiyor (`pytest`, ~95 sn, API çağırmaz) — 50'si Foundry
+**Testler:** 439 geçiyor (`pytest`, ~95 sn, API çağırmaz) — 50'si Foundry
 **Dolap:** 12 kıyafet (7 üst + #23 oxford gömlek, 4 alt) · aksesuar YOK (§47.7)
 **Mankenler:** `base` (#1, 12 FASHN katmanı) · `manken 2` (#139, 3 katman) ·
   `MAI` (#174, 12 MAI katmanı, **aktif**)
@@ -18,7 +18,7 @@
   FASHN panelinden kontrol et.
 **Sunucu:** `Dolabi Ac.bat` çift tıkla (ya da `python cli.py web`) → http://127.0.0.1:8000
 
-> ### ⚠ YENİ SOHBETTE İLK İŞ: §49–§55'e bak
+> ### ⚠ YENİ SOHBETTE İLK İŞ: §49–§56'ya bak
 > Staj teslimi bitti. Açık iş: bir Microsoft çalışanının Foundry talebi.
 > gpt-image-2 ve Claude'a kota çıkmadı (§50); Microsoft'un MAI modelleri için
 > destek eklendi ve **MAI-Image-2.6 ile gerçek ölçüm yapıldı** — gömlek,
@@ -4571,11 +4571,11 @@ Doğrulama:
 
 **Hâlâ açık (sıfırdan kurulumu etkileyen):**
 
-- Dolap boşken ilk açılışta (`/api/base.png` → `ensure()` → `generate()`)
-  görüntü modeli bir manken üretiyor: 1 ücretli çağrı. MAI'nin üretim
-  (`/generations`) yolu sahte istemciyle test edildi, **gerçek çağrıyla
-  ölçülmedi**. Başarısız olursa placeholder figür çıkar; kendi fotoğrafını
-  eklemek her durumda daha iyi.
+- ~~Dolap boşken ilk açılışta görüntü modeli bir manken üretiyor~~ —
+  **YANLIŞTI (§56):** ilk açılış `/api/base_raw.png` istiyor, üretim yapmıyor.
+  Üretim, aktif mankenin fotoğrafı yokken KIYAFET eklenince oluyor
+  (`build_layer` → `ensure()` → `generate()`): 1 ücretli çağrı. MAI'nin üretim
+  (`/generations`) yolu gerçek çağrıyla ölçülmedi.
 - ~~Render maliyet tahmini sabit FASHN fiyatı~~ → §54'te çözüldü: ücret ve
   model adı artık aktif sağlayıcıdan.
 
@@ -4673,11 +4673,42 @@ fotoğrafla eklenince yeşil çıkarım base'i kendiliğinden kuruldu
    (gpt-4.1-mini)".
 
 README'nin Foundry bölümüne "siteyi açmadan önce mankeni komutla ekle" adımı
-eklendi (yoksa ilk açılışta MAI bir manken üretiyor — 1 ücretli çağrı).
-3 yeni test (toplam 435).
+eklendi — §56'da arayüz akışıyla değiştirildi: o komut veritabanını da
+kurduğu için asıl çökmeyi gizliyordu. 3 yeni test (toplam 435).
 
 **Denenemeyen:** temiz bir Python ortamına `pip install -r requirements.txt`
 (paket indirmesi gerektiriyor). Gerekli paket listesi kodla karşılaştırıldı;
 `rembg` bilerek opsiyonel ve ayrı komutla kuruluyor (`pip install
 "rembg[cpu]"`) — kurulmazsa kişi silüeti yok, yeşil base ve bölge
 kısıtlaması daha kaba çalışır.
+
+## 56. Arayüzden ilk manken — ve ilk açılıştaki çökme (18 Ekim 2026)
+
+Soru: dışarıdan kuran kişi mankeni komut satırı yerine arayüzdeki
+**+ Yeni manken** ile ekleyebilir mi? Temiz kopyada (sahte anahtar, görüntü
+modelinin çağrıları yakalanıp sayıldı — hiçbiri yapılmadı) denendi.
+
+**Bulunan üç şey:**
+
+1. **`Dolabi Ac.bat` temiz kurulumda hemen kapanıyordu.** `python cli.py web`
+   veritabanını kurmuyordu ve açılışta katman sayısını sorduğu için
+   `sqlite3.OperationalError: no such table: layers` veriyordu. §55'teki
+   kuru denemede görünmedi çünkü önce `mannequin --from-photo` çalıştırılmıştı
+   — o komut `init_db()` çağırıyor. Düzeltme: `cmd_web` önce `init_db()`;
+   dolap boşsa "önce + Yeni manken, sonra + Kıyafet ekle" yazıyor.
+2. **Arayüzden ilk manken görselsiz bir "base" bırakıyordu.** `init_db`
+   fotoğrafsız bir "base" satırı açıyor; `add_from_photo` her zaman YENİ satır
+   açtığı için listede boş bir "base" kalıyordu. Düzeltme: aktif manken o boş
+   satırsa ilk fotoğraf onu dolduruyor (ad verildiyse ad da yazılıyor).
+   Fotoğrafı olan hiçbir mankene dokunulmuyor. Arayüz notu fotoğrafsız aktif
+   mankende "Önce manken ekle: + Yeni manken …" diyor.
+3. **Önceki iddiam yanlıştı:** "dolap boşken ilk açılışta görüntü modeli
+   manken üretiyor" — hayır. İlk açılış `/api/base_raw.png` istiyor ve
+   fotoğraf yoksa 404 dönüyor, üretim yok. Ücretli üretim yalnızca fotoğrafsız
+   mankende KIYAFET eklenince oluyor. README buna göre düzeltildi.
+
+Doğrulama (temiz kopya + bu değişiklikler): `cli.py web` → veritabanı
+kuruldu, çıkış 0; site açıldı → tek manken "base" (fotoğrafsız), ücretli
+çağrı yok; **+ Yeni manken** → 201, aynı satır doldu, `base_extract.png`
+(yeşil taban) kuruldu, sahne 200, ücretli çağrı yok. Geliştiricinin sitesinde yeni
+`app.js` sorunsuz (mevcut mankenlerde not değişmedi). 4 yeni test (toplam 439).

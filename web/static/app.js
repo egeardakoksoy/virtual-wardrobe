@@ -157,9 +157,13 @@ function mankenleriCiz() {
 
   const aktif = MANKENLER.find((m) => m.is_active);
   const not = $("#manken-not");
-  if (!aktif) {
+  if (!aktif || !aktif.has_image) {
+    // Sıfırdan kurulum: fotoğrafsız varsayılan satır (§56). Kıyafet bundan
+    // ÖNCE eklenirse görüntü modeli kendi mankenini üretiyor (ücretli).
     not.className = "alt uyari";
-    not.textContent = "Aktif manken yok — python cli.py mannequin --from-photo <foto>";
+    not.textContent =
+      "Önce manken ekle: '+ Yeni manken' ile tam boy, önden çekilmiş bir "
+      + "fotoğraf yükle (ücretsiz). Sonra kıyafetlerini ekleyebilirsin.";
   } else if (!aktif.layer_count) {
     not.className = "alt uyari";
     not.textContent =
