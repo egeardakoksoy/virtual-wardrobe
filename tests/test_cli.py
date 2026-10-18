@@ -71,3 +71,45 @@ def test_gecersiz_kategori_reddedilir():
 def test_komutsuz_cagri_reddedilir():
     with pytest.raises(SystemExit):
         main([])
+
+
+# --- Sıfırdan kurulum (§55) ---
+
+def _yalnizca_foundry(monkeypatch):
+    monkeypatch.setenv("FOUNDRY_RESOURCE", "ornek-kaynak")
+    monkeypatch.setenv("FOUNDRY_API_KEY", "test-anahtari")
+    monkeypatch.setenv("FOUNDRY_IMAGE_DEPLOYMENT", "MAI-Image-2.6")
+    monkeypatch.setenv("FOUNDRY_VISION_DEPLOYMENT", "gpt-4.1-mini")
+
+
+def test_doctor_foundry_kurulumunda_yanlis_yonlendirmiyor(monkeypatch, capsys):
+    """FAL/FASHN/Anthropic yokken "sahte katman üretilir" yazıyordu; oysa
+    katmanları ve okumayı Foundry yapıyor. Sıfırdan kuran kişi bunu görüp
+    kurulumun bozuk olduğunu sanardı."""
+    _yalnizca_foundry(monkeypatch)
+    main(["doctor"])
+    cikti = capsys.readouterr().out
+
+    assert "görüntü işleri Foundry'de (MAI-Image-2.6)" in cikti
+    assert "kıyafet okuma Foundry'de (gpt-4.1-mini)" in cikti
+    assert "sahte katman üretilir" not in cikti
+    assert "test-anahtari" not in cikti
+
+
+def test_doctor_python_multipart_yoksa_hata_verir(monkeypatch, capsys):
+    """Paket yoksa arayüz hiç açılmıyor (FastAPI form/dosya yüklemesi)."""
+    import cli
+
+    monkeypatch.setattr(cli, "_multipart_var", lambda: False)
+    assert main(["doctor"]) == 1
+    assert "python-multipart  yok" in capsys.readouterr().out
+
+
+def test_requirements_python_multipart_iceriyor():
+    """Temiz makinede `pip install -r requirements.txt` arayüzü açabilmeli.
+    fastapi bu paketi kendisi kurmuyor; eksikti ve geliştirme makinesinde
+    başka bir paketle geldiği için fark edilmemişti."""
+    from config import PROJECT_ROOT
+
+    satirlar = (PROJECT_ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()
+    assert any(s.strip().startswith("python-multipart") for s in satirlar)

@@ -200,6 +200,36 @@ def _doctor_foundry() -> None:
         print("  ⚠ gpt-image yolu henüz gerçek çağrıyla ÖLÇÜLMEDİ (bkz. HANDOFF §48)")
 
 
+def _eksik_anahtar_sonucu(name: str, varsayilan: str) -> str:
+    """Eksik anahtarın sonucu — o işi Foundry üstleniyorsa bunu söyler.
+
+    Sabit metin yalnızca Foundry'li kurulumda yanıltıyordu (§55): FAL_KEY
+    yoksa "sahte katman üretilir" yazıyordu, oysa katmanları Foundry'nin
+    görüntü modeli üretiyor.
+    """
+    from wardrobe import foundry
+
+    if name in ("FAL_KEY", "FASHN_API_KEY") and foundry.image_ready():
+        return f"görüntü işleri Foundry'de ({foundry.image_deployment()})"
+    if name == "ANTHROPIC_API_KEY":
+        if foundry.claude_ready():
+            return f"kıyafet okuma Foundry'de ({foundry.claude_deployment()})"
+        if foundry.vision_ready():
+            return f"kıyafet okuma Foundry'de ({foundry.vision_deployment()})"
+    return varsayilan
+
+
+def _multipart_var() -> bool:
+    """FastAPI'nin form/dosya yüklemesi için paket — yoksa arayüz açılmıyor."""
+    for modul in ("python_multipart", "multipart"):   # yeni ve eski modül adı
+        try:
+            __import__(modul)
+            return True
+        except ImportError:
+            pass
+    return False
+
+
 def cmd_doctor(args) -> int:
     """Kurulumu ve anahtarları kontrol eder — anahtar DEĞERİ asla yazdırılmaz."""
     ok = True
@@ -216,7 +246,7 @@ def cmd_doctor(args) -> int:
     for name, purpose, fallback in secrets.KNOWN_KEYS:
         info = secrets.describe(name)
         if not info["present"]:
-            print(f"  ○ {name:<20} yok → {fallback}")
+            print(f"  ○ {name:<20} yok → {_eksik_anahtar_sonucu(name, fallback)}")
             continue
 
         print(f"  ✓ {name:<20} {info['masked']}  ({info['length']} karakter)")
@@ -233,6 +263,12 @@ def cmd_doctor(args) -> int:
     _doctor_foundry()
 
     print("\nBağımlılıklar:")
+    if _multipart_var():
+        print("  ✓ python-multipart  kurulu (arayüzden yükleme)")
+    else:
+        print("  ✗ python-multipart  yok → arayüz AÇILMAZ")
+        print("            Düzeltmek için:  pip install python-multipart")
+        ok = False
     if has_rembg():
         print("  ✓ rembg   kurulu (iyi kırpma)")
     else:

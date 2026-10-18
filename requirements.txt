@@ -28,3 +28,8 @@ pytest>=8.0
 # --- Arayüz (Faz 2) ---
 fastapi>=0.110
 uvicorn[standard]>=0.29
+# ŞART: FastAPI'nin form/dosya yüklemesi bunu istiyor ve kendisi kurmuyor.
+# Yoksa arayüz hiç açılmıyor ("Form data requires python-multipart").
+# Geliştirme makinesinde başka bir paketle geldiği için fark edilmemişti —
+# temiz kurulum denemesinde bulundu (HANDOFF §55).
+python-multipart>=0.0.9

@@ -31,7 +31,7 @@ KNOWN_KEYS: tuple[tuple[str, str, str], ...] = (
     # Microsoft Foundry: tek anahtar hem Claude hem görüntü dağıtımlarına
     # erişiyor. Kaynak adı ve dağıtım adları sır değil — `doctor` onları ayrı
     # bir bölümde açık gösteriyor (bkz. wardrobe/foundry.py).
-    ("FOUNDRY_API_KEY", "Microsoft Foundry — Claude + görüntü modeli",
+    ("FOUNDRY_API_KEY", "Microsoft Foundry — kıyafet okuma + görüntü modeli",
      "Foundry kullanılmaz (opsiyonel)"),
 )
 

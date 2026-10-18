@@ -8,7 +8,7 @@
 **GitHub:** https://github.com/egeardakoksoy/virtual-wardrobe (public)
 **Durum:** Faz 0 ✅ · Faz 1 ✅ · Faz 2 ✅ · Faz 4 ✅ · Faz 6 ✅ · Faz 3 ertelendi ·
   **Microsoft AI Innovators staj teslimi TAMAMLANDI, sertifika alındı (17.8.2026)**
-**Testler:** 432 geçiyor (`pytest`, ~95 sn, API çağırmaz) — 50'si Foundry
+**Testler:** 435 geçiyor (`pytest`, ~95 sn, API çağırmaz) — 50'si Foundry
 **Dolap:** 12 kıyafet (7 üst + #23 oxford gömlek, 4 alt) · aksesuar YOK (§47.7)
 **Mankenler:** `base` (#1, 12 FASHN katmanı) · `manken 2` (#139, 3 katman) ·
   `MAI` (#174, 12 MAI katmanı, **aktif**)
@@ -18,7 +18,7 @@
   FASHN panelinden kontrol et.
 **Sunucu:** `Dolabi Ac.bat` çift tıkla (ya da `python cli.py web`) → http://127.0.0.1:8000
 
-> ### ⚠ YENİ SOHBETTE İLK İŞ: §49–§54'e bak
+> ### ⚠ YENİ SOHBETTE İLK İŞ: §49–§55'e bak
 > Staj teslimi bitti. Açık iş: bir Microsoft çalışanının Foundry talebi.
 > gpt-image-2 ve Claude'a kota çıkmadı (§50); Microsoft'un MAI modelleri için
 > destek eklendi ve **MAI-Image-2.6 ile gerçek ölçüm yapıldı** — gömlek,
@@ -4642,3 +4642,42 @@ yükleme notu "~$0.06". Konsolda hata yok.
 Sonuç: MAI mankeninde dört işin hepsi Microsoft modelinde — katman, gerçekçi
 render ve düzenleme MAI-Image-2.6'da, kıyafet okuma ve talimat çevirisi
 gpt-4.1-mini'de.
+
+## 55. Temiz kopyada kuru deneme: GitHub'dan indirip kuran biri (18 Ekim 2026)
+
+Push edilen sürüm (0c9adf2) boş bir klasöre klonlandı ve dışarıdan kuran
+birinin adımları izlendi: `.env.example` → `.env` + dört Foundry satırı
+(SAHTE kaynak ve anahtarla — hiçbir ücretli çağrı yapılmadı),
+`python cli.py doctor`, siteyi açmadan `python cli.py mannequin
+--from-photo`, sonra site uçları (TestClient).
+
+**Çalışan:** boş `FAL_KEY=` / `FASHN_API_KEY=` / `ANTHROPIC_API_KEY=`
+satırları "yok" sayılıyor; sağlayıcı Foundry → MAI-Image-2.6; manken
+fotoğrafla eklenince yeşil çıkarım base'i kendiliğinden kuruldu
+(`base_extract.png`, katmanlar ona karşı çıkacak); `/api/wardrobe` "MAI-Image-2.6
+· katman $0.06 · yükleme $0.061" verdi; zemin görüntüsü üretimsiz açıldı.
+
+**Bulunan iki sorun — düzeltildi:**
+
+1. **`python-multipart` requirements'ta yoktu → temiz makinede site hiç
+   açılmıyordu.** FastAPI form/dosya yüklemesi için bu paketi istiyor ve
+   kendisi kurmuyor. Geliştirme makinesinde başka bir paketle geldiği için
+   fark edilmemişti. Paket gizlenerek kanıtlandı: `import web.app` →
+   `RuntimeError: Form data requires "python-multipart" to be installed`.
+   Düzeltme: requirements.txt'e eklendi; `doctor` artık paketi kontrol ediyor
+   (yoksa ✗ ve çıkış kodu 1).
+2. **`doctor` Foundry'li kurulumda yanlış yönlendiriyordu:** FAL_KEY yoksa
+   "sahte katman üretilir", FASHN yoksa "fal üzerinden v1.6 kullanılır"
+   yazıyordu; oysa katmanları MAI üretiyor. Artık: "görüntü işleri
+   Foundry'de (MAI-Image-2.6)", Anthropic yoksa "kıyafet okuma Foundry'de
+   (gpt-4.1-mini)".
+
+README'nin Foundry bölümüne "siteyi açmadan önce mankeni komutla ekle" adımı
+eklendi (yoksa ilk açılışta MAI bir manken üretiyor — 1 ücretli çağrı).
+3 yeni test (toplam 435).
+
+**Denenemeyen:** temiz bir Python ortamına `pip install -r requirements.txt`
+(paket indirmesi gerektiriyor). Gerekli paket listesi kodla karşılaştırıldı;
+`rembg` bilerek opsiyonel ve ayrı komutla kuruluyor (`pip install
+"rembg[cpu]"`) — kurulmazsa kişi silüeti yok, yeşil base ve bölge
+kısıtlaması daha kaba çalışır.
