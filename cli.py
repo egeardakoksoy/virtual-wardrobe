@@ -167,7 +167,7 @@ def _doctor_foundry() -> None:
 
     s = foundry.summary()
     if not (s["resource"] or s["key_present"] or s["claude_deployment"]
-            or s["image_deployment"]):
+            or s["image_deployment"] or s["vision_deployment"]):
         return
 
     print("\nMicrosoft Foundry:")
@@ -177,6 +177,10 @@ def _doctor_foundry() -> None:
           f"{'var' if s['key_present'] else 'yok → FOUNDRY_API_KEY'}")
     print(f"  {'✓' if s['claude_ready'] else '○'} Claude dağıtımı   "
           f"{s['claude_deployment'] or 'yok → öznitelik başka kaynaktan'}")
+    if s["vision_deployment"]:
+        print(f"  {'✓' if s['vision_ready'] else '○'} görsel analiz     "
+              f"{s['vision_deployment']}"
+              + ("  (Claude dağıtımı tanımlı → o önce)" if s["claude_ready"] else ""))
     print(f"  {'✓' if s['image_ready'] else '○'} görüntü dağıtımı  "
           f"{s['image_deployment'] or 'yok → sanal deneme başka sağlayıcıda'}")
     if s["image_ready"] and s["image_api"] == "mai":
@@ -190,8 +194,10 @@ def _doctor_foundry() -> None:
             print('      ⚠ openai paketi kurulu değil:  pip install openai')
         print(f"      boyut {s['image_size']} · kalite {s['image_quality']}")
         print(f"      uç nokta {s['openai_base_url']}")
-    print("  ⚠ Foundry görüntü sağlayıcısı henüz gerçek çağrıyla ÖLÇÜLMEDİ "
-          "(bkz. HANDOFF §48)")
+    if s["image_ready"] and s["image_api"] == "mai":
+        print("  ✓ MAI-Image-2.6 gerçek çağrıyla ölçüldü (HANDOFF §51.6–§51.8)")
+    elif s["image_ready"]:
+        print("  ⚠ gpt-image yolu henüz gerçek çağrıyla ÖLÇÜLMEDİ (bkz. HANDOFF §48)")
 
 
 def cmd_doctor(args) -> int:

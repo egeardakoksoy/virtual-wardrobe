@@ -1,5 +1,9 @@
 """Kıyafet öznitelik çıkarımı — Claude vision + yapılandırılmış JSON çıktı.
 
+Claude'a erişilemeyen Foundry aboneliklerinde aynı iş, aynı şemayla
+Foundry'deki görsel destekli bir sohbet modeline yaptırılabiliyor
+(FOUNDRY_VISION_DEPLOYMENT; bkz. `_foundry_sohbet`).
+
 Tasarım kararları:
 - Model tek bir sabitte (MODEL). Opus 5, görsel akıl yürütmede en iyisi.
 - `output_config.format` ile JSON şeması dayatılır: model serbest metin değil,
@@ -126,10 +130,12 @@ _CATEGORY_DEFAULTS: dict[str, tuple[int, int, str]] = {
 
 
 def has_api_key() -> bool:
-    """Claude'a erişim var mı — birinci taraf API ya da Microsoft Foundry."""
+    """Öznitelik modeline erişim var mı — Claude (birinci taraf ya da Foundry)
+    ya da Foundry'deki bir görsel analiz dağıtımı."""
     from wardrobe import foundry
 
-    return bool(os.environ.get("ANTHROPIC_API_KEY")) or foundry.claude_ready()
+    return (bool(os.environ.get("ANTHROPIC_API_KEY")) or foundry.claude_ready()
+            or foundry.vision_ready())
 
 
 def _claude_istemcisi():
@@ -156,9 +162,137 @@ def active_label() -> str:
 
     if foundry.claude_ready():
         return f"Claude @ Foundry ({foundry.claude_deployment()})"
+    if foundry.vision_ready():
+        return f"{foundry.vision_deployment()} @ Foundry (görsel analiz)"
     if os.environ.get("ANTHROPIC_API_KEY"):
         return f"Claude ({MODEL})"
     return "MOCK (Claude anahtarı yok)"
+
+
+# Kıyafet başına okuma ücreti (USD) — yalnızca arayüzün yükleme notu için.
+# Foundry görsel analiz: gpt-4.1-mini ile ölçüldü, ~2.100 belirteç ≈ $0.001
+# (§52.1). Claude: ~2.000 girdi + ~300 çıktı belirteci, Opus fiyatıyla ~$0.02
+# (yukarı yuvarlanmış tahmin).
+OKUMA_USD_FOUNDRY = 0.001
+OKUMA_USD_CLAUDE = 0.02
+
+
+def cost_usd_estimate() -> float:
+    """Bir kıyafeti okumanın yaklaşık ücreti — `active_label` ile aynı sıra."""
+    from wardrobe import foundry
+
+    if foundry.claude_ready():
+        return OKUMA_USD_CLAUDE
+    if foundry.vision_ready():
+        return OKUMA_USD_FOUNDRY
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return OKUMA_USD_CLAUDE
+    return 0.0
+
+
+# --- Foundry görsel analiz: Claude yerine OpenAI uyumlu bir sohbet modeli ---
+#
+# NEDEN: Claude'a kota çıkmayan Foundry aboneliklerinde (§50) kıyafet okuma da
+# Foundry'de kalabilsin. gpt-4.1-mini, gpt-5-mini, gpt-4o, Phi-4-multimodal ...
+# hepsi aynı arayüzü konuşuyor: /openai/v1/chat/completions, görsel data URL.
+
+# Akıl yürüten modeller (gpt-5 ailesi) çıktı sınırının bir kısmını düşünmeye
+# harcıyor; JSON'un kendisi ~300 belirteç. Cömert tutuldu — mini modellerde
+# maliyet farkı önemsiz.
+FOUNDRY_MAX_TOKENS = 4000
+
+# JSON şeması desteği modele göre değişiyor: gpt ailesi şemayı uyguluyor, bazı
+# modeller yalnızca JSON modu sunuyor, bazıları hiçbirini. Sırayla deneniyor;
+# 400 yanıtı hangi alanı beğenmediğini söylüyor.
+_YANIT_BICIMLERI = ("json_schema", "json_object", None)
+
+# Şemayı uygulamayan modeller için alan listesi talimatın içinde de veriliyor.
+_SEMA_NOTU = (
+    "\n\nYanıtı yalnızca bu JSON şemasına uyan tek bir nesne olarak ver, "
+    "başka metin yazma:\n" + json.dumps(GARMENT_SCHEMA, ensure_ascii=False)
+)
+
+
+def _yanit_bicimi(tur: str | None) -> dict | None:
+    if tur == "json_schema":
+        return {"type": "json_schema",
+                "json_schema": {"name": "kiyafet", "schema": GARMENT_SCHEMA,
+                                "strict": True}}
+    if tur == "json_object":
+        return {"type": "json_object"}
+    return None
+
+
+def _foundry_sohbet(messages: list, *, json_bekleniyor: bool, max_tokens: int) -> str:
+    """Foundry'deki görsel analiz dağıtımına tek sohbet isteği; yanıt metni.
+
+    Düz HTTP (httpx — anthropic'in bağımlılığı), openai paketi gerekmiyor.
+    Model farkları istekten bir şey DÜŞÜRÜLEREK aşılıyor: JSON şeması → JSON
+    modu → serbest metin; `max_completion_tokens` reddedilirse `max_tokens`.
+    Başka her hata olduğu gibi yükseliyor — mesajında anahtar yok.
+    """
+    import httpx
+
+    from wardrobe import foundry
+
+    bicimler = list(_YANIT_BICIMLERI) if json_bekleniyor else [None]
+    sinir_alani = "max_completion_tokens"
+    surum = foundry.openai_api_version()
+    for _ in range(6):
+        govde = {"model": foundry.vision_deployment(), "messages": messages,
+                 sinir_alani: max_tokens}
+        bicim = _yanit_bicimi(bicimler[0])
+        if bicim:
+            govde["response_format"] = bicim
+        yanit = httpx.post(
+            f"{foundry.openai_base_url()}chat/completions",
+            headers={"api-key": foundry.api_key() or ""},
+            params={"api-version": surum} if surum else None,
+            json=govde,
+            timeout=120.0,
+        )
+        if yanit.status_code == 400:
+            metin = yanit.text.lower()
+            if "max_completion_tokens" in metin and sinir_alani != "max_tokens":
+                sinir_alani = "max_tokens"
+                continue
+            if ("response_format" in metin or "json_schema" in metin) and len(bicimler) > 1:
+                bicimler.pop(0)
+                continue
+        if yanit.status_code >= 400:
+            raise RuntimeError(
+                f"Foundry görsel analiz → HTTP {yanit.status_code}: {yanit.text[:300]}")
+        return (yanit.json()["choices"][0]["message"].get("content") or "").strip()
+    raise RuntimeError("Foundry görsel analiz: modelin kabul ettiği istek biçimi bulunamadı")
+
+
+def _json_ayikla(metin: str) -> dict:
+    """Yanıttaki JSON nesnesi. JSON modu olmayan modeller onu ```json ... ```
+    içine sarabiliyor ya da önüne bir cümle ekleyebiliyor."""
+    try:
+        return json.loads(metin)
+    except ValueError:
+        bas, son = metin.find("{"), metin.rfind("}")
+        if bas == -1 or son <= bas:
+            raise
+        return json.loads(metin[bas:son + 1])
+
+
+def _foundry_oznitelikleri(image_path: str | Path) -> dict:
+    img = downscale(load_upright(image_path))
+    metin = _foundry_sohbet(
+        [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": [
+                {"type": "text", "text": USER_PROMPT + _SEMA_NOTU},
+                {"type": "image_url", "image_url": {
+                    "url": "data:image/jpeg;base64," + to_base64_jpeg(img)}},
+            ]},
+        ],
+        json_bekleniyor=True,
+        max_tokens=FOUNDRY_MAX_TOKENS,
+    )
+    return _json_ayikla(metin)
 
 
 # Düzenleme talimatlarını çevirmek için kullanılan model. Öznitelik
@@ -203,9 +337,19 @@ def translate_prompt(text: str, *, model: str | None = None) -> str:
     if not has_api_key():
         return text
 
-    try:
-        from wardrobe import foundry
+    from wardrobe import foundry
 
+    if model is None and not foundry.claude_ready() and foundry.vision_ready():
+        try:
+            ceviri = _foundry_sohbet(
+                [{"role": "system", "content": TRANSLATE_SYSTEM},
+                 {"role": "user", "content": text}],
+                json_bekleniyor=False, max_tokens=2000)
+            return ceviri or text
+        except Exception:
+            return text
+
+    try:
         if model is None:
             model = (foundry.claude_translate_deployment()
                      if foundry.claude_ready() else TRANSLATE_MODEL)
@@ -238,15 +382,28 @@ def extract_attributes(
             mock yolu kategori tahmininde bunu kullanıyor.
 
     Returns:
-        GARMENT_SCHEMA alanları + "attr_source": "claude" | "mock".
+        GARMENT_SCHEMA alanları + "attr_source": "claude" | "foundry" | "mock".
     Anahtar yoksa ya da API hata verirse mock'a düşer; asla exception fırlatmaz.
+
+    Sıra: Foundry'deki Claude → Foundry'deki görsel analiz dağıtımı →
+    birinci taraf Claude → mock. Foundry açık bir tercih (dağıtım adı yazılmış).
     """
     if not has_api_key():
         return _mock_attributes(image_path, name_hint=name_hint)
 
-    try:
-        from wardrobe import foundry
+    from wardrobe import foundry
 
+    if model is None and not foundry.claude_ready() and foundry.vision_ready():
+        try:
+            attrs = _normalize(_foundry_oznitelikleri(image_path))
+            attrs["attr_source"] = "foundry"
+            return attrs
+        except Exception as exc:  # ağ/API/ayrıştırma hatası -> hat kırılmaz
+            return _mock_attributes(
+                image_path, note=f"Foundry hatası: {exc}", name_hint=name_hint
+            )
+
+    try:
         # Foundry'de `model` alanı DAĞITIM adı ister, model kimliği değil.
         if model is None:
             model = foundry.claude_deployment() if foundry.claude_ready() else MODEL

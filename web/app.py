@@ -205,12 +205,31 @@ def _ham_rev(garment_id: int) -> int:
 
 
 def _manken_ozet() -> dict:
-    """Aktif mankenin kimliği — arayüz hangi zemin üzerinde olduğunu yazsın."""
+    """Aktif mankenin kimliği — arayüz hangi zemin üzerinde olduğunu yazsın.
+
+    Model ve ücret de burada (§54): katman üretiminin onay ekranı ve yükleme
+    notu sabit FASHN fiyatı yazıyordu, MAI mankeninde de.
+    """
     row = mannequin.active()
-    if not row:
-        return {"id": 0, "name": "", "count": 0}
-    return {"id": int(row["id"]), "name": row["name"],
-            "count": len(mannequin.list_all())}
+    ozet = ({"id": int(row["id"]), "name": row["name"],
+             "count": len(mannequin.list_all())} if row
+            else {"id": 0, "name": "", "count": 0})
+    return ozet | _katman_ucreti()
+
+
+def _katman_ucreti() -> dict:
+    """Aktif mankende bir katmanın modeli ve yaklaşık ücreti. Ağa çıkmaz."""
+    from wardrobe import vision, vton
+
+    try:
+        p = vton.get_provider()
+    except ValueError:                       # bozuk VTON_PROVIDER
+        return {}
+    katman = p.cost_usd()
+    return {"provider": p.name, "model": vton.model_label(p),
+            "layer_cost_usd": round(katman, 3),
+            # Yükleme = okuma + katman.
+            "upload_cost_usd": round(katman + vision.cost_usd_estimate(), 3)}
 
 
 @app.get("/api/base.png")
@@ -658,6 +677,8 @@ def _render_provider(payload: dict):
 @app.post("/api/render/plan")
 def render_plan(payload: dict) -> JSONResponse:
     """Ne kadar süreceğini ve tutacağını çağrı YAPMADAN söyler."""
+    from wardrobe import vton
+
     ids = [int(i) for i in payload.get("garment_ids", [])]
     if not ids:
         raise HTTPException(400, "kombin boş")
@@ -670,6 +691,7 @@ def render_plan(payload: dict) -> JSONResponse:
     mevcut = render.cached_key(ids, provider_name=ad)
     p["cached"] = mevcut is not None
     p["provider"] = ad
+    p["model"] = vton.model_label(provider)
     p["key"] = mevcut or render.cache_key(ids, provider_name=ad)
     return JSONResponse(p)
 
@@ -742,31 +764,36 @@ def edit_source(payload: dict) -> JSONResponse:
       · "render" — Faz 4'ün zincirleme render'ı. Temiz zemin ama önce
         üretilmiş olması gerekiyor (kıyafet başına ücretli).
     """
+    from wardrobe import vton
+
     ids = [int(i) for i in payload.get("garment_ids", [])]
     if not ids:
         raise HTTPException(400, "kombin boş")
     mod = str(payload.get("mode", "layers"))
+    # Ücret, düzenlemeyi GERÇEKTEN yapacak sağlayıcıdan (§54). Ağa çıkmıyor.
+    duzenleyici = vton.get_edit_provider()
 
     if mod == "layers":
         try:
             key = edits.ensure_composite(ids)
         except Exception as exc:
             raise HTTPException(400, f"katman görüntüsü üretilemedi: {exc}")
-        return JSONResponse(edits.plan(key) | {"mode": "layers"})
+        return JSONResponse(edits.plan(key, provider=duzenleyici) | {"mode": "layers"})
 
-    from wardrobe import vton
     key = render.cached_key(ids, provider_name=vton.get_provider().name)
     if not key:
         raise HTTPException(
             409, "bu kombinin gerçekçi render'ı yok — önce 'Gerçekçi Göster'")
-    return JSONResponse(edits.plan(key) | {"mode": "render"})
+    return JSONResponse(edits.plan(key, provider=duzenleyici) | {"mode": "render"})
 
 
 @app.get("/api/edit/{key}")
 def edit_state(key: str) -> JSONResponse:
     """Zincirin durumu — çağrı YAPMADAN (ücretsiz)."""
+    from wardrobe import vton
+
     try:
-        return JSONResponse(edits.plan(key))
+        return JSONResponse(edits.plan(key, provider=vton.get_edit_provider()))
     except edits.EditError as exc:
         raise HTTPException(400, str(exc))
 

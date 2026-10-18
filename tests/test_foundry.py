@@ -639,3 +639,166 @@ def test_manken_saglayicisi_dogrulanir_ve_kaldirilabilir(monkeypatch, tmp_path, 
     mannequin.set_provider(mai, None)
     assert mannequin.provider_for(mai) is None
     assert vton.get_provider().name == "mock"        # anahtar yok → küresel sıra
+
+
+def test_mai_mankeninde_duzenleme_de_mai_ile(monkeypatch, tmp_path, db_path):
+    """"Gerçekçi göster" mankenin sağlayıcısını kullanıyordu, düzenleme ise
+    hep FASHN'dan başlıyordu: MAI mankeninde aynı render iki modelle
+    işleniyordu, kullanıcıya görünmeden (§54)."""
+    monkeypatch.setenv("FASHN_API_KEY", "y")
+    _foundry_ortami(monkeypatch, image="MAI-Image-2.6")
+    a, mai = _iki_manken(monkeypatch, tmp_path, db_path)
+
+    assert vton.get_edit_provider().name == "foundry"     # MAI aktif
+    mannequin.set_active(a)
+    assert vton.get_edit_provider().name == "fashn"       # A: eski sıra
+
+
+def test_mankenin_saglayicisi_kullanilamiyorsa_duzenleme_digerine_duser(
+        monkeypatch, tmp_path, db_path):
+    monkeypatch.setenv("FASHN_API_KEY", "y")
+    _iki_manken(monkeypatch, tmp_path, db_path)           # Foundry ayarı yok
+    assert vton.get_edit_provider().name == "fashn"
+
+
+# --- Ücret ve model adı (§54) ---
+
+def test_foundry_ucreti_model_ailesine_gore(monkeypatch):
+    _foundry_ortami(monkeypatch, image="MAI-Image-2.6")
+    assert vton.FoundryImageProvider().cost_usd() == vton.MAI_CALL_USD
+    monkeypatch.setenv("FOUNDRY_IMAGE_DEPLOYMENT", "MAI-Image-2.6-Flash")
+    assert vton.FoundryImageProvider().cost_usd() == vton.MAI_FLASH_CALL_USD
+    monkeypatch.setenv("FOUNDRY_IMAGE_DEPLOYMENT", "gpt-image-2")
+    assert vton.FoundryImageProvider().cost_usd() == vton.GPT_IMAGE_CALL_USD
+
+
+def test_model_etiketi_portaldaki_dagitim_adi(monkeypatch):
+    _foundry_ortami(monkeypatch, image="MAI-Image-2.6")
+    assert vton.model_label(vton.FoundryImageProvider()) == "MAI-Image-2.6"
+    assert vton.model_label(vton.FashnProvider()) == "FASHN tryon-max"
+    assert vton.model_label(vton.MockProvider()) == "mock"
+
+
+# --- Görsel analiz: Claude yerine Foundry'deki sohbet modeli ---
+
+_GECERLI_OZNITELIK = {
+    "category": "alt", "subcategory": "chino pantolon", "color_name": "bej",
+    "color_hex": "#C8B89A", "secondary_color_hex": "", "pattern": "düz",
+    "style": "gunluk", "seasons": ["ilkbahar", "yaz"], "fabric": "pamuk",
+    "warmth": 4, "formality": 5, "notes": "düz kesim, beş cep",
+}
+
+
+def _gorsel_ortami(monkeypatch, **ek):
+    _foundry_ortami(monkeypatch, **ek)
+    monkeypatch.setenv("FOUNDRY_VISION_DEPLOYMENT", "gpt-4.1-mini")
+
+
+def _sohbet_sunucusu(monkeypatch, yanitlar: list[tuple[int, dict]]) -> list:
+    """`httpx.post` sahte: sıradaki (durum, gövde) yanıtını döner, istekleri kaydeder."""
+    import httpx
+
+    cagrilar, sira = [], list(yanitlar)
+
+    def post(url, **kw):
+        cagrilar.append((url, kw))
+        durum, govde = sira.pop(0)
+        return _SahteMaiYaniti(govde, durum)
+
+    monkeypatch.setattr(httpx, "post", post)
+    return cagrilar
+
+
+def _icerik(metin: str) -> tuple[int, dict]:
+    return 200, {"choices": [{"message": {"content": metin}}]}
+
+
+def test_gorsel_analiz_kaynak_ve_anahtar_ister(monkeypatch):
+    monkeypatch.setenv("FOUNDRY_VISION_DEPLOYMENT", "gpt-4.1-mini")
+    assert not foundry.vision_ready()
+    _foundry_ortami(monkeypatch)
+    assert foundry.vision_ready()
+
+
+def test_oznitelik_foundry_sohbet_modelinden_gelir(monkeypatch, photo):
+    _gorsel_ortami(monkeypatch)
+    cagrilar = _sohbet_sunucusu(monkeypatch, [_icerik(json.dumps(_GECERLI_OZNITELIK))])
+
+    attrs = vision.extract_attributes(photo)
+
+    assert attrs["attr_source"] == "foundry"
+    assert (attrs["category"], attrs["subcategory"]) == ("alt", "chino pantolon")
+    url, kw = cagrilar[0]
+    assert url == "https://ornek-kaynak.openai.azure.com/openai/v1/chat/completions"
+    assert kw["headers"] == {"api-key": "test-anahtari"}
+    govde = kw["json"]
+    assert govde["model"] == "gpt-4.1-mini"                       # DAĞITIM adı
+    assert govde["response_format"]["type"] == "json_schema"
+    assert govde["response_format"]["json_schema"]["schema"] == vision.GARMENT_SCHEMA
+    assert "max_completion_tokens" in govde
+    parcalar = govde["messages"][1]["content"]
+    assert parcalar[1]["image_url"]["url"].startswith("data:image/jpeg;base64,")
+
+
+def test_json_semasini_tanimayan_model_json_moduna_duser(monkeypatch, photo):
+    """Bazı modeller şemayı tanımıyor ve JSON'u ```json ...``` içine sarıyor."""
+    _gorsel_ortami(monkeypatch)
+    cagrilar = _sohbet_sunucusu(monkeypatch, [
+        (400, {"error": {"message": "response_format json_schema is not supported"}}),
+        _icerik("```json\n" + json.dumps(_GECERLI_OZNITELIK) + "\n```"),
+    ])
+
+    attrs = vision.extract_attributes(photo)
+
+    assert attrs["attr_source"] == "foundry" and attrs["subcategory"] == "chino pantolon"
+    assert cagrilar[1][1]["json"]["response_format"] == {"type": "json_object"}
+
+
+def test_max_completion_tokens_reddedilirse_max_tokens(monkeypatch, photo):
+    _gorsel_ortami(monkeypatch)
+    cagrilar = _sohbet_sunucusu(monkeypatch, [
+        (400, {"error": {"message": "Unsupported parameter: 'max_completion_tokens'"}}),
+        _icerik(json.dumps(_GECERLI_OZNITELIK)),
+    ])
+
+    assert vision.extract_attributes(photo)["attr_source"] == "foundry"
+    ikinci = cagrilar[1][1]["json"]
+    assert "max_tokens" in ikinci and "max_completion_tokens" not in ikinci
+
+
+def test_foundry_hatasi_mocka_duser_ve_anahtar_sizmaz(monkeypatch, photo):
+    _gorsel_ortami(monkeypatch)
+    _sohbet_sunucusu(monkeypatch, [(401, {"error": {"message": "erişim reddedildi"}})])
+
+    attrs = vision.extract_attributes(photo)
+
+    assert attrs["attr_source"] == "mock"
+    assert "401" in attrs["notes"] and "test-anahtari" not in attrs["notes"]
+
+
+def test_claude_dagitimi_tanimliysa_once_o(monkeypatch):
+    _gorsel_ortami(monkeypatch, claude="claude-opus-5-5")
+    monkeypatch.setattr(vision, "_foundry_sohbet",
+                        lambda *a, **k: pytest.fail("Claude dururken görsel analize gitti"))
+    assert vision.active_label().startswith("Claude @ Foundry")
+
+
+def test_ceviri_foundry_sohbet_modeliyle(monkeypatch):
+    _gorsel_ortami(monkeypatch)
+    cagrilar = _sohbet_sunucusu(monkeypatch, [_icerik("roll up the sleeves")])
+
+    assert vision.translate_prompt("kolları kıvır") == "roll up the sleeves"
+    govde = cagrilar[0][1]["json"]
+    assert "response_format" not in govde
+    assert govde["messages"][0]["content"] == vision.TRANSLATE_SYSTEM
+
+
+def test_doctor_gorsel_analiz_satiri(monkeypatch, capsys):
+    import cli
+
+    _gorsel_ortami(monkeypatch)
+    cli._doctor_foundry()
+    cikti = capsys.readouterr().out
+
+    assert "görsel analiz" in cikti and "gpt-4.1-mini" in cikti
+    assert "test-anahtari" not in cikti

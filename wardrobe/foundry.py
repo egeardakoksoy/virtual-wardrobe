@@ -8,8 +8,14 @@ yere dağıtmak, birinin güncellenip diğerinin unutulması demek.
 Tek kaynak, tek anahtar; görüntü tarafında iki model ailesi:
 
     Claude          : https://{resource}.services.ai.azure.com/anthropic/v1/*
+    Görsel analiz   : https://{resource}.openai.azure.com/openai/v1/chat/completions
     Görüntü (gpt)   : https://{resource}.openai.azure.com/openai/v1/*
     Görüntü (MAI)   : https://{resource}.services.ai.azure.com/mai/v1/images/*
+
+Görsel analiz: Claude'a kota çıkmayan abonelikler için kıyafet okumayı
+Foundry'deki herhangi bir görsel destekli sohbet modeline (gpt-4.1-mini,
+gpt-5-mini, gpt-4o, Phi-4-multimodal ...) yaptırıyor — OpenAI uyumlu sohbet
+arayüzü, aynı JSON şeması.
 
 MAI, Microsoft'un kendi görüntü modelleri (MAI-Image-2.5 / 2.6). Ayrı bir API:
 düzenleme multipart, 5 görsele kadar girdi, boyut alanı yok, yanıt base64 PNG.
@@ -74,6 +80,16 @@ def claude_translate_deployment() -> str | None:
 
 def claude_ready() -> bool:
     return _baglanti_var() and bool(claude_deployment())
+
+
+# --- Görsel analiz (Claude yerine, OpenAI uyumlu sohbet modeli) ---
+
+def vision_deployment() -> str | None:
+    return secrets.get("FOUNDRY_VISION_DEPLOYMENT")
+
+
+def vision_ready() -> bool:
+    return _baglanti_var() and bool(vision_deployment())
 
 
 # --- Görüntü modeli ---
@@ -161,6 +177,8 @@ def summary() -> dict:
         "key_present": bool(api_key()),
         "claude_deployment": claude_deployment(),
         "claude_ready": claude_ready(),
+        "vision_deployment": vision_deployment(),
+        "vision_ready": vision_ready(),
         "image_deployment": image_deployment(),
         "image_ready": image_ready(),
         "image_api": image_api(),

@@ -192,6 +192,10 @@ class VtonProvider(Protocol):
 
     def text_to_image(self, prompt: str, size: tuple[int, int]) -> Image.Image: ...
 
+    # Çağrı başına yaklaşık ücret (USD) — arayüz düğmeye basmadan gösteriyor.
+    # Kaynaklar ve yuvarlama kuralı: `FASHN_CREDIT_USD` bloğu.
+    def cost_usd(self) -> float: ...
+
 
 def to_fashn_category(category: str) -> str:
     if category in UNSUPPORTED_CATEGORIES:
@@ -237,6 +241,9 @@ class FalProvider:
 
     def supports_category(self, category: str) -> bool:
         return category not in UNSUPPORTED_CATEGORIES
+
+    def cost_usd(self) -> float:
+        return FAL_TRYON_USD
 
     def available(self) -> bool:
         if not secrets.has("FAL_KEY"):
@@ -443,6 +450,30 @@ FASHN_CREDITS = {
     ("quality", "1k"): 3, ("quality", "2k"): 4, ("quality", "4k"): 5,
 }
 
+# --- Çağrı başına yaklaşık ücret (USD) — `cost_usd()` (§54) ---
+#
+# Kesin fatura değil; amaç düğmeye basmadan doğru büyüklüğü göstermek. Şüphede
+# YUKARI yuvarlanıyor: olduğundan ucuz göstermek pahalı göstermekten kötü.
+#
+# FASHN (help.fashn.ai, API fiyatı, Ekim 2026): talep üzerine KREDİ başına
+#   $0.075. tryon-max ve düzenleme balanced+1k = 2 kredi → çağrı $0.15.
+#   ⚠ Arayüz eskiden çağrı başına $0.075 gösteriyordu — fal'daki v1.6'nın
+#   fiyatı, tryon-max'in yarısı.
+# MAI-Image-2.6 (Microsoft, belirteç fiyatı): görsel çıktı $38/M, görsel girdi
+#   $8/M, metin $5/M. ~1 MP çıktı ≈ 1.024 belirteç ≈ $0.039 (üçüncü taraf
+#   tahminleriyle aynı). Giydirmede İKİ görsel de giriyor; girdi belirteci
+#   belgelenmemiş → $0.06'ya yuvarlandı. Flash'ın belirteç fiyatı yarı → $0.03.
+#   Kesin rakam Azure Cost Management'ta (fatura ~1 gün gecikmeli).
+# gpt-image: high + 1024x1536 liste fiyatı $0.25 (gpt-image-1); gpt-image-2
+#   için doğrulanmadı, bu yol zaten ölçülmedi.
+# fal: FASHN v1.6 çağrı $0.075; Gemini düzenleme ~$0.04 (doğrulanmadı).
+FASHN_CREDIT_USD = 0.075
+FAL_TRYON_USD = 0.075
+GEMINI_EDIT_USD = 0.04
+MAI_CALL_USD = 0.06
+MAI_FLASH_CALL_USD = 0.03
+GPT_IMAGE_CALL_USD = 0.25
+
 
 class FashnProvider:
     """FASHN'ın kendi API'si — `tryon-max` dahil.
@@ -526,6 +557,10 @@ class FashnProvider:
 
     def credits(self) -> int:
         return FASHN_CREDITS.get((self.generation_mode, self.resolution), 2)
+
+    def cost_usd(self) -> float:
+        # Giydirme ve düzenleme aynı tabloyla ücretleniyor (FASHN belgesi).
+        return self.credits() * FASHN_CREDIT_USD
 
     # --- HTTP ---
 
@@ -838,6 +873,9 @@ class GeminiEditProvider:
     def supports_category(self, category: str) -> bool:
         return True
 
+    def cost_usd(self) -> float:
+        return GEMINI_EDIT_USD
+
     def _client(self):
         import fal_client
         os.environ.setdefault("FAL_KEY", secrets.get("FAL_KEY") or "")
@@ -1060,10 +1098,10 @@ class FoundryImageProvider:
     kısıtlaması ikisinde de aynı — sorun modelin türünde değil, genel amaçlı
     olmasında.
 
-    ⚠ ÖLÇÜLMEDİ: bu sağlayıcıyla hiçbir gerçek çağrı yapılmadı. Kod Microsoft'un
-    belgelediği arayüze göre yazıldı ve sahte istemciyle test edildi; kıyafet
-    sadakati, poz kayması ve katman kalitesi ilk gerçek çalıştırmada ölçülmeli.
-    FASHN tanımlıysa o önce seçiliyor (bkz. get_provider).
+    ÖLÇÜM DURUMU: MAI yolu gerçek çağrılarla ölçüldü — 12 kıyafette katman,
+    FASHN düzeyinde (§51.6–§51.9). gpt-image yolu ve MAI ile düzenleme
+    sohbeti/manken üretimi yalnızca sahte istemciyle test edildi. Mankene
+    sağlayıcı bağlanmamışsa FASHN önce seçiliyor (bkz. get_provider).
     """
 
     name = "foundry"
@@ -1093,8 +1131,14 @@ class FoundryImageProvider:
 
     def credits(self) -> int:
         # Foundry kredi değil token üzerinden faturalıyor. Arayüz "kaç çağrı"
-        # gösterebilsin diye çağrı başına 1.
+        # gösterebilsin diye çağrı başına 1. Ücret: `cost_usd`.
         return 1
+
+    def cost_usd(self) -> float:
+        if foundry.image_api() == "mai":
+            ad = (foundry.image_deployment() or "").lower()
+            return MAI_FLASH_CALL_USD if "flash" in ad else MAI_CALL_USD
+        return GPT_IMAGE_CALL_USD
 
     def _client(self):
         from openai import OpenAI
@@ -1229,6 +1273,9 @@ class MockProvider:
     def supports_category(self, category: str) -> bool:
         return category not in UNSUPPORTED_CATEGORIES
 
+    def cost_usd(self) -> float:
+        return 0.0
+
     def try_on(
         self, model_image: Path, garment_image: Path, category: str
     ) -> Image.Image:
@@ -1338,10 +1385,36 @@ def get_provider(name: str | None = None) -> VtonProvider:
 def get_edit_provider():
     """Düzenleme sohbeti (Faz 6) için sağlayıcı: FASHN, yoksa Foundry.
 
+    AKTİF MANKENİN SAĞLAYICISI ÖNE ALINIYOR (§54): sıra eskiden sabitti ve
+    MAI mankeninde "Gerçekçi göster" MAI ile, aynı render'ın düzenlemesi ise
+    FASHN ile yapılıyordu — iki model, iki fatura, kullanıcıya görünmeden.
+    `VTON_PROVIDER` de aynı yoldan geçiyor (get_provider'daki sırayla).
+    Adaylar yine yalnızca düzenleme yapabilen ikisi.
+
     Hiçbiri kullanılamıyorsa FASHN dönüyor — çağıran taraf `available()`
     kontrolünde anlamlı bir hata veriyor ("hangi anahtar eksik").
     """
-    for aday in (FashnProvider(), FoundryImageProvider()):
+    sira = [FashnProvider, FoundryImageProvider]
+    tercih = _PROVIDERS.get(os.environ.get("VTON_PROVIDER") or _manken_saglayicisi())
+    if tercih in sira:
+        sira.remove(tercih)
+        sira.insert(0, tercih)
+    for sinif in sira:
+        aday = sinif()
         if aday.available():
             return aday
     return FashnProvider()
+
+
+def model_label(provider) -> str:
+    """Arayüzde gösterilen model adı — hangi modelin çağrılacağı görünsün.
+
+    Foundry için dağıtımın kendi adı ("MAI-Image-2.6"): kullanıcının portalda
+    gördüğü ad bu.
+    """
+    if provider.name == "fashn":
+        return f"FASHN {provider.model_name}"
+    if provider.name == "foundry":
+        return foundry.image_deployment() or "Foundry"
+    return {"fal": "FASHN v1.6 (fal)", "gemini": "Gemini (fal)"}.get(
+        provider.name, provider.name)

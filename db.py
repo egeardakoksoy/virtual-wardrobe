@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS garments (
     raw_path            TEXT    NOT NULL,
     cutout_path         TEXT    NOT NULL DEFAULT '',
     cutout_method       TEXT    NOT NULL DEFAULT '',
-    attr_source         TEXT    NOT NULL DEFAULT '',   -- claude | mock
+    attr_source         TEXT    NOT NULL DEFAULT '',   -- claude | foundry | mock
     align_json          TEXT    NOT NULL DEFAULT '',   -- hizalama: dx,dy,scale,rotate
     created_at          TEXT    NOT NULL DEFAULT (datetime('now'))
 );

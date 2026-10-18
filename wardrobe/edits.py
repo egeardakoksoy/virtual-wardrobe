@@ -296,8 +296,12 @@ def plan(key: str, provider=None) -> dict:
     adimlar = chain(key)
     tumu = history(key)
     su_an = selected(key)
-    kredi = provider.credits() if provider is not None else \
-        vton.FASHN_CREDITS[("balanced", "1k")]
+    if provider is not None:
+        kredi, ucret = provider.credits(), provider.cost_usd()
+        ad, model = provider.name, vton.model_label(provider)
+    else:
+        kredi = vton.FASHN_CREDITS[("balanced", "1k")]
+        ucret, ad, model = kredi * vton.FASHN_CREDIT_USD, "fashn", "FASHN"
     return {
         "key": key,
         "steps": adimlar,
@@ -310,6 +314,10 @@ def plan(key: str, provider=None) -> dict:
                         and step_path(key, a["n"]).is_file() for a in tumu),
         "count": len(adimlar),
         "credits": kredi,
+        # Kredi yalnızca FASHN'da anlamlı; arayüz dolar gösteriyor (§54).
+        "cost_usd": round(ucret, 3),
+        "provider": ad,
+        "model": model,
         "can_undo": bool(adimlar),
         # `editable` DOSYA ÜRETMİYOR — `current_path` üretebiliyor. plan()
         # ücretsiz ve yan etkisiz kalmalı.

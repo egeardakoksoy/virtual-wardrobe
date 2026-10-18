@@ -311,7 +311,8 @@ def test_cikarim_basei_ayri_dosya_ve_gercek_foto_bozulmuyor(db_path, tmp_path):
 
 
 def test_cikarim_goruntusu_yoksa_gercek_fotoya_dusuyor(db_path, tmp_path):
-    """Bu özelliği kullanmayan mankende hat aynen eskisi gibi çalışmalı."""
+    """Varyantı olmayan mankende (eski kayıt ya da kurulamadı) hat aynen
+    eskisi gibi çalışmalı."""
     from PIL import Image
 
     Image.new("RGB", (400, 600), (70, 96, 150)).save(tmp_path / "m.png")
@@ -320,6 +321,111 @@ def test_cikarim_goruntusu_yoksa_gercek_fotoya_dusuyor(db_path, tmp_path):
     assert not mannequin.extract_base_path(db_path=db_path).is_file()
     assert (str(mannequin.extraction_image(db_path=db_path))
             == mannequin.active(db_path)["image_path"])
+
+
+# --- Yeşil çıkarım base'i kendiliğinden (§53) ---
+
+@pytest.fixture
+def yesil_otomatik(monkeypatch):
+    """conftest'in kapattığı otomatik kurulumu bu testler için açar."""
+    monkeypatch.setattr(mannequin, "YESIL_TABAN_OTOMATIK", True)
+
+
+def _koyu_kiyafetli_foto(tmp_path, ad="m.png", kutu=(200, 420, 140, 260)):
+    """Açık zeminde koyu dikdörtgen "kıyafet" — §44 testlerindeki kurulum."""
+    y0, y1, x0, x1 = kutu
+    arr = np.full((600, 400, 3), 240, dtype=np.uint8)
+    arr[y0:y1, x0:x1] = (30, 34, 48)
+    yol = tmp_path / ad
+    Image.fromarray(arr).save(yol)
+    return yol
+
+
+def test_yeni_mankende_yesil_taban_kendiliginden_kuruluyor(
+        db_path, tmp_path, yesil_otomatik):
+    """Sıfırdan kurulumda yeni manken eklenince elle adım gerekmemeli.
+
+    Eksikken: yeşil base yalnızca elle kurulan mankenlerde vardı. Yeni
+    mankende `drop_extract_color` gerçek kıyafetin paletini hedefliyor ve
+    MAI katmanlarında delik açıyordu (§51.8).
+    """
+    info = mannequin.add_from_photo(_koyu_kiyafetli_foto(tmp_path),
+                                    name="Yeni", db_path=db_path)
+
+    yol = mannequin.extract_base_path(info["mannequin_id"], db_path)
+    assert yol.is_file(), "yeni mankende yeşil çıkarım base'i kurulmadı"
+    assert mannequin.extraction_image(info["mannequin_id"], db_path) == yol
+
+    a = np.asarray(Image.open(yol).convert("RGB")).astype(int)
+    h, w = a.shape[:2]
+    orta = a[int(0.45 * h):int(0.55 * h), int(0.45 * w):int(0.55 * w)].reshape(-1, 3)
+    assert orta[:, 1].mean() > orta[:, 0].mean() + 40, "kıyafet yeşile boyanmamış"
+
+
+def test_foto_degisince_eski_yesil_taban_silinir(db_path, tmp_path):
+    """Fotoğraf değişince eski varyant KALMAMALI — gösterim base'iyle aynı kural.
+
+    Eksikti: bayat varyant duruyordu ve `extraction_image` onu seçiyordu, yani
+    VTON'a eski fotoğrafın geometrisi gidiyordu. Otomatik kurulum burada
+    kapalı: yalnızca silme test ediliyor.
+    """
+    mannequin.from_photo(_koyu_kiyafetli_foto(tmp_path, "a.png"), db_path=db_path)
+    mannequin.build_extract_base(db_path=db_path)
+    assert mannequin.extract_base_path(db_path=db_path).is_file()
+
+    mannequin.from_photo(_koyu_kiyafetli_foto(tmp_path, "b.png"), db_path=db_path)
+
+    assert not mannequin.extract_base_path(db_path=db_path).is_file(), (
+        "eski fotoğrafın yeşil base'i duruyor — VTON'a eski geometri gider")
+    assert (str(mannequin.extraction_image(db_path=db_path))
+            == mannequin.active(db_path)["image_path"])
+
+
+def test_foto_degisince_yesil_taban_yeniden_kurulur(db_path, tmp_path, yesil_otomatik):
+    mannequin.from_photo(_koyu_kiyafetli_foto(tmp_path, "a.png"), db_path=db_path)
+    yol = mannequin.extract_base_path(db_path=db_path)
+    eski = yol.read_bytes()
+
+    mannequin.from_photo(
+        _koyu_kiyafetli_foto(tmp_path, "b.png", kutu=(80, 300, 100, 220)),
+        db_path=db_path)
+
+    assert yol.is_file(), "fotoğraf değişince yeşil base yeniden kurulmadı"
+    assert yol.read_bytes() != eski, "yeşil base hâlâ eski fotoğrafa ait"
+
+
+def test_placeholdera_yesil_taban_kurulmuyor(db_path, yesil_otomatik):
+    info = mannequin.placeholder(db_path=db_path, name="Figür")
+    assert not mannequin.extract_base_path(info["mannequin_id"], db_path).is_file()
+
+
+def test_yesil_taban_kurulamazsa_manken_yine_eklenir(
+        db_path, tmp_path, monkeypatch, yesil_otomatik):
+    """Yeşil base bir iyileştirme; kurulamaması manken eklemeyi bozmamalı."""
+    def patla(*args, **kwargs):
+        raise RuntimeError("maske hesaplanamadı")
+
+    monkeypatch.setattr(mannequin, "build_extract_base", patla)
+
+    info = mannequin.add_from_photo(_koyu_kiyafetli_foto(tmp_path),
+                                    name="Yeni", db_path=db_path)
+
+    assert info["created"]
+    assert not mannequin.extract_base_path(info["mannequin_id"], db_path).is_file()
+    assert (str(mannequin.extraction_image(info["mannequin_id"], db_path))
+            == info["image_path"])
+
+
+def test_manken_silinince_yesil_taban_da_silinir(db_path, tmp_path):
+    mannequin.from_photo(_koyu_kiyafetli_foto(tmp_path, "a.png"), db_path=db_path)
+    info = mannequin.add_from_photo(_koyu_kiyafetli_foto(tmp_path, "b.png"),
+                                    name="İkinci", db_path=db_path)
+    yol = mannequin.build_extract_base(info["mannequin_id"], db_path)
+    assert yol.is_file()
+
+    mannequin.delete(info["mannequin_id"], db_path=db_path)
+
+    assert not yol.is_file(), "silinen mankenin yeşil base'i diskte kaldı"
 
 
 def test_kucuk_bilesenler_elenir_kiyafet_kalir():

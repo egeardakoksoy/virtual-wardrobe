@@ -51,6 +51,13 @@ function zeminiSec() {
 
 const $ = (s) => document.querySelector(s);
 
+/* Ücretler sunucudan, AKTİF modele göre geliyor (§54) — burada sabit fiyat
+ * yok. Eskiden "~$0.075" yazıyordu: FASHN'ın eski modelinin fiyatı, MAI'de de. */
+const dolar = (x) => {
+  const n = Number(x);
+  return Number.isFinite(n) ? `~$${n.toFixed(2)}` : "~$?";
+};
+
 async function baslat() {
   await dolabiYenile();
   kayitlariYukle();
@@ -541,8 +548,8 @@ async function katmanUret(g) {
   const ad = g.subcategory || `#${g.id}`;
 
   if (!confirm(
-    `"${ad}" için katman üretilecek.\n\n` +
-    `Bu ÜCRETLİ bir çağrı (~$0.075) ve 15-40 sn sürer.\n` +
+    `"${ad}" için katman üretilecek (${MANKEN.model || "?"}).\n\n` +
+    `Bu ÜCRETLİ bir çağrı (${dolar(MANKEN.layer_cost_usd)}) ve 15-40 sn sürer.\n` +
     `Kıyafet base mankenin kıyafetiyle aynı renkteyse katman boş çıkabilir.`
   )) return;
 
@@ -579,6 +586,9 @@ async function dolabiYenile() {
   KATEGORI = veri.categories;
   KIYAFETLER = veri.garments;
   MANKEN = veri.mannequin || { id: 0, name: "" };
+  // Yükleme notu: okuma + katman, aktif mankenin modeliyle.
+  $("#yukle-ucret").textContent =
+    MANKEN.upload_cost_usd != null ? ` · ${dolar(MANKEN.upload_cost_usd)}` : "";
 
   // Zemin URL'si manken id'sini DE taşıyor. Sadece mtime damgası yetmezdi:
   // iki mankenin gösterim base'i aynı saniyede üretilmişse damgalar eşit
@@ -832,7 +842,7 @@ function duzenleCiz(d) {
     const zemin = duzenleKaynak === "layers"
       ? "katman görüntüsü (zemin bedava)" : "gerçekçi render";
     bilgi.textContent =
-      `${zemin} üzerine · her düzenleme ${d.credits} kredi · ~15-25 sn.`;
+      `${zemin} üzerine · ${d.model || "?"} · her düzenleme ${dolar(d.cost_usd)} · ~15-25 sn.`;
   }
 }
 
@@ -966,7 +976,8 @@ async function planiGoster() {
     $("#render").textContent = "Gerçekçi Göster";
   } else {
     const atlanan = p.skipped.length ? `  ${p.skipped.length} kıyafet atlanacak.` : "";
-    bilgi.textContent = `${p.calls} çağrı · ~$${p.cost_usd} · 30-80 sn.${atlanan}`;
+    bilgi.textContent =
+      `${p.calls} çağrı · ${p.model || p.provider} · ${dolar(p.cost_usd)} · 30-80 sn.${atlanan}`;
     $("#render").textContent = "Gerçekçi Göster (ücretli)";
   }
 }
@@ -1043,7 +1054,7 @@ async function gercekciGoster() {
     if (j.status === "done") {
       renderGoster(j.key);
       bilgi.className = "alt";
-      bilgi.textContent = `Hazır — ${j.calls} çağrı, ~$${j.cost_usd}.`;
+      bilgi.textContent = `Hazır — ${j.calls} çağrı, ${dolar(j.cost_usd)}.`;
     } else {
       bilgi.className = "alt hata";
       bilgi.textContent = `Başarısız: ${j.error || "bilinmeyen hata"}`;

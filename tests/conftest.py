@@ -45,6 +45,7 @@ def isolated_env(tmp_path, monkeypatch):
                 "FOUNDRY_IMAGE_DEPLOYMENT", "FOUNDRY_IMAGE_SIZE",
                 "FOUNDRY_IMAGE_QUALITY", "FOUNDRY_OPENAI_BASE_URL",
                 "FOUNDRY_OPENAI_API_VERSION", "FOUNDRY_IMAGE_API",
+                "FOUNDRY_VISION_DEPLOYMENT",
                 "FOUNDRY_MAI_AUTO_ASPECT",
                 "ANTHROPIC_FOUNDRY_API_KEY", "ANTHROPIC_FOUNDRY_RESOURCE",
                 "ANTHROPIC_FOUNDRY_BASE_URL"):
@@ -82,6 +83,11 @@ def isolated_env(tmp_path, monkeypatch):
     # makinede geçip diğerinde kalır) ve test süresi 4 sn'den 65 sn'ye çıkar.
     # rembg yolunun kendisi test_cutout.py'de ayrıca test ediliyor.
     monkeypatch.setattr("wardrobe.cutout.DEFAULT_METHOD", "flood")
+
+    # Yeni mankende yeşil çıkarım base'i kendiliğinden kuruluyor ve kişi
+    # maskesi rembg kullanıyor — aynı sebeple kapalı. Açık hâli
+    # test_mannequin.py'de (`yesil_otomatik` fikstürü) ayrıca test ediliyor.
+    monkeypatch.setattr("wardrobe.mannequin.YESIL_TABAN_OTOMATIK", False)
     return raw, cutout
 
 

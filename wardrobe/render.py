@@ -10,7 +10,7 @@ giydirirken altı görüyor. Katman çıkarımı yok, bindirme yok, dolayısıyl
 çıkarımın hiçbir kusuru da yok.
 
 Bedeli: kıyafet başına bir VTON çağrısı. İki parçalı bir kombin ~30-80 saniye ve
-~$0.15. Bu yüzden:
+~$0.30 (FASHN tryon-max) ya da ~$0.12 (MAI). Bu yüzden:
 
   · Sonuç MUTLAKA önbelleğe alınıyor (aynı kombin ikinci kez bedava).
   · Önbellek anahtarı mankeni de içeriyor — manken değişince eski render
@@ -34,10 +34,11 @@ from wardrobe import mannequin, vton
 RENDER_DIR = DATA_DIR / "renders"
 RENDER_DIR.mkdir(parents=True, exist_ok=True)
 
-# Sağlayıcı başına yaklaşık çağrı ücreti (USD). Kesin fiyat değil — arayüzde
-# "ne kadara mal olacak" göstermek için. Yanlış tarafa yuvarlanmış olması,
-# olduğundan ucuz göstermesinden iyidir.
-CALL_COST_USD = 0.075
+# Sağlayıcı VERİLMEYEN plan'ın çağrı ücreti (USD): varsayılan FASHN tryon-max,
+# balanced+1k = 2 kredi × $0.075. Sağlayıcı verilirse onun `cost_usd()`'si
+# kullanılıyor (bkz. vton.FASHN_CREDIT_USD bloğu — kaynaklar orada). Eskiden
+# tek sabit $0.075'ti: tryon-max'in yarısı, MAI'nin ise üstü (§54).
+CALL_COST_USD = 0.15
 
 
 def _base_mannequin_id(db_path=None) -> int:
@@ -92,9 +93,10 @@ def plan(garment_ids: list[int], db_path=None, provider=None) -> dict:
     # katman mimarisinin çözemediği şey tam olarak buydu.
     uygulanacak.sort(key=lambda g: z_index(g["category"]))
 
+    birim = provider.cost_usd() if provider is not None else CALL_COST_USD
     return {
         "calls": len(uygulanacak),
-        "cost_usd": round(len(uygulanacak) * CALL_COST_USD, 3),
+        "cost_usd": round(len(uygulanacak) * birim, 3),
         "order": [g["id"] for g in uygulanacak],
         "skipped": atlanan,
     }

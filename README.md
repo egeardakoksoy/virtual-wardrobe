@@ -8,7 +8,7 @@ tek tıkla **gerçekçi render**'a çeviriyor ve doğal dille düzenliyor
 ![Bir kez öde, sonsuz kez giy](nasil-calisiyor-akis.svg)
 
 **Durum:** Faz 0 ✅ · Faz 1 ✅ · Faz 2 ✅ · Faz 4 ✅ · Faz 6 ✅ · Faz 3 ve 5 açık
-· **406 test geçiyor** (hiçbiri gerçek API çağırmıyor)
+· **432 test geçiyor** (hiçbiri gerçek API çağırmıyor)
 
 Bu README mimariyi ve gerekçelerini anlatıyor. Her kararın arkasındaki **ölçüm
 kayıtları** — çürüyen hipotezler dâhil — [`HANDOFF.md`](HANDOFF.md) içinde
@@ -46,23 +46,30 @@ Windows'ta `Dolabi Ac.bat` çift tıklamak da aynı işi yapıyor.
 ### Microsoft Foundry ile çalıştırma
 
 FASHN / fal / Anthropic anahtarları yerine tek bir **Microsoft Foundry**
-kaynağı kullanılabilir. Tek anahtar hem Claude'a (öznitelik çıkarımı) hem bir
-görüntü modeline (sanal deneme, manken üretimi, düzenleme sohbeti) erişiyor.
+kaynağı kullanılabilir. Tek anahtar hem kıyafet okumaya (Claude ya da görsel
+destekli bir sohbet modeli) hem bir görüntü modeline (sanal deneme, manken
+üretimi, düzenleme sohbeti) erişiyor.
 
 1. Foundry'de bir kaynak oluştur ve dağıtımları aç: bir **görüntü modeli** —
-   Microsoft'un kendi **MAI** modelleri (örn. `MAI-Image-2.6-Flash`) ya da
-   **gpt-image** (örn. `gpt-image-2`) — ve isteğe bağlı bir **Claude** modeli
-   (örn. `claude-opus-5-5`).
+   Microsoft'un kendi **MAI** modelleri (örn. `MAI-Image-2.6`) ya da
+   **gpt-image** (örn. `gpt-image-2`) — ve kıyafet okuma için bir **Claude**
+   modeli (örn. `claude-opus-5-5`) ya da Claude'a kota çıkmıyorsa görsel
+   destekli herhangi bir **sohbet modeli** (örn. `gpt-4.1-mini`).
 2. `.env`'e ekle:
 
    ```
    FOUNDRY_RESOURCE=kaynak-adin
    FOUNDRY_API_KEY=...
-   FOUNDRY_IMAGE_DEPLOYMENT=MAI-Image-2.6-Flash
-   FOUNDRY_CLAUDE_DEPLOYMENT=claude-opus-5-5
+   FOUNDRY_IMAGE_DEPLOYMENT=MAI-Image-2.6
+   FOUNDRY_VISION_DEPLOYMENT=gpt-4.1-mini
+   # FOUNDRY_CLAUDE_DEPLOYMENT=claude-opus-5-5   # Claude'a kota varsa; tanımlıysa önce o kullanılır
    ```
 
 3. `python cli.py doctor` ile "Microsoft Foundry" bölümünü kontrol et.
+4. Arayüzde **+ Yeni manken** ile kendi tam boy fotoğrafını ekle (önden, düz
+   duruş, dar ve sade kıyafet). Yeşil çıkarım base'i kendiliğinden kuruluyor
+   (bkz. `HANDOFF.md` §53). Dolap boşken ilk açılışta görüntü modeli bir manken
+   de üretiyor (1 ücretli çağrı).
 
 **Kod değişikliği gerekmiyor:** MAI ayrı bir API kullanıyor ama dağıtım adı
 `MAI-Image` ile başladığı sürece kendiliğinden seçiliyor (başka ad verdiysen
@@ -70,17 +77,24 @@ görüntü modeline (sanal deneme, manken üretimi, düzenleme sohbeti) erişiyo
 
 Parçalar bağımsız: yalnızca Claude dağıtımını tanımlarsan öznitelik çıkarımı
 Foundry'den gelir, sanal deneme diğer sağlayıcılarda kalır. FASHN anahtarı da
-tanımlıysa sanal denemede FASHN önceliklidir.
+tanımlıysa, mankene sağlayıcı bağlanmadıkça sanal denemede ve düzenlemede
+FASHN önceliklidir.
+
+**Maliyet:** ücretli her düğmenin yanında hangi modelin çağrılacağı ve tahmini
+ücret yazıyor. MAI-Image-2.6 çağrı başına ~$0.06 (yukarı yuvarlanmış tahmin),
+FASHN tryon-max $0.15, kıyafet okuma (gpt-4.1-mini) ~$0.001. Kesin rakam Azure
+Cost Management'ta (bkz. `HANDOFF.md` §54).
 
 > ⚠️ **Foundry'de hazır bir sanal deneme modeli yok.** MAI ve gpt-image genel
 > amaçlı modeller; katman mimarisinin istediği "kıyafet dışı sabit kalsın"
 > şartını kendiliğinden sağlamıyorlar. Bunun bir kısmını kod sağlıyor: model
 > çıktısı, kıyafetin olabileceği bölgenin (kategori bandı ∩ kişi silüeti)
 > dışında base fotoğrafla değiştiriliyor. Bölgenin **içinde** ise model gövdeyi
-> kaydırır ya da rengi değiştirirse katman kirlenir. Mantık sahte istemciyle
-> test edildi; **gerçek çağrılarla katman kalitesi henüz ölçülmedi** (bkz.
-> `HANDOFF.md` §48, §51). Kişi silüeti için `rembg` kurulu olmalı — yoksa
-> yalnızca dikey bant korunuyor.
+> kaydırır ya da rengi değiştirirse katman kirlenir. **MAI-Image-2.6 gerçek
+> çağrılarla 12 kıyafette ölçüldü** ve uygulamada FASHN düzeyinde çıktı; yeşil
+> çıkarım base'iyle renkte hafif kayma kalıyor (bkz. `HANDOFF.md` §51.6–§51.9).
+> **gpt-image yolu henüz ölçülmedi.** Kişi silüeti için `rembg` kurulu olmalı —
+> yoksa yalnızca dikey bant korunuyor.
 
 ### Komutlar
 
@@ -102,7 +116,7 @@ tanımlıysa sanal denemede FASHN önceliklidir.
 | `python cli.py tryon-ab <id> --seed 42` | VTON ayar karşılaştırması (**ücretli**) |
 | `python cli.py layer-ab <id>` | Katman mimarisi model karşılaştırması (**ücretli**) |
 | `python cli.py web` | Giydirme arayüzünü başlatır |
-| `pytest` | 406 test |
+| `pytest` | 432 test |
 
 > `--reextract` önemli: çıkarım parametrelerini ayarlarken API'ye tekrar ödeme
 > yapmamak için ham VTON çıktıları diskte saklanıyor. Bu projedeki iyileştirmelerin
@@ -261,7 +275,7 @@ Arkasında dört adaptör var:
 | `fashn` | FASHN doğrudan API, `tryon-max` — **varsayılan** |
 | `fal` | fal.ai üzerinden FASHN v1.6 |
 | `gemini` | görsel düzenleme (Faz 6 sohbeti) |
-| `foundry` | Microsoft Foundry'deki MAI ya da gpt-image modeli — bölge kısıtlamasıyla (ölçülmedi) |
+| `foundry` | Microsoft Foundry'deki MAI ya da gpt-image modeli — bölge kısıtlamasıyla (MAI ölçüldü, gpt-image ölçülmedi) |
 | `mock` | bedava, sahte katman — testler ve kuru çalıştırma |
 
 ```bash
@@ -360,7 +374,7 @@ wardrobe/
 web/
   app.py               FastAPI uç noktaları
   static/              index.html · app.js · style.css
-tests/                 406 test (21 dosya), API anahtarı gerektirmez
+tests/                 432 test (21 dosya), API anahtarı gerektirmez
 data/                  raw/ cutout/ layers/ mannequins/ renders/ + wardrobe.db
 ```
 
@@ -372,7 +386,7 @@ data/                  raw/ cutout/ layers/ mannequins/ renders/ + wardrobe.db
 pytest
 ```
 
-406 test, ~90 saniye, **hiçbiri gerçek API çağırmıyor.** `conftest.py` her testte
+432 test, ~90 saniye, **hiçbiri gerçek API çağırmıyor.** `conftest.py` her testte
 API anahtarlarını siliyor, varsayılan veritabanını ve veri dizinlerini
 `tmp_path`'e yönlendiriyor. Geliştiricinin `.env`'i yüklü olsa bile testler
 **fatura üretmiyor** ve gerçek dolabı kirletmiyor.

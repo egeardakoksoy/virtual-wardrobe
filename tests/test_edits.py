@@ -466,6 +466,18 @@ def test_plan_UCRETSIZ_ve_saglayiciya_dokunmuyor(render_png, monkeypatch):
     assert p["can_undo"] is False
 
 
+def test_plan_ucreti_ve_modeli_duzenleyiciden(render_png, monkeypatch):
+    """Kredi yalnızca FASHN'da anlamlı; arayüz dolar ve model adı yazıyor (§54)."""
+    p = edits.plan(render_png, provider=vton.FashnProvider())
+    assert p["cost_usd"] == pytest.approx(0.15)
+    assert (p["provider"], p["model"]) == ("fashn", "FASHN tryon-max")
+
+    monkeypatch.setenv("FOUNDRY_IMAGE_DEPLOYMENT", "MAI-Image-2.6")
+    p = edits.plan(render_png, provider=vton.FoundryImageProvider())
+    assert p["cost_usd"] == pytest.approx(vton.MAI_CALL_USD)
+    assert (p["provider"], p["model"]) == ("foundry", "MAI-Image-2.6")
+
+
 # --- manken değişimi ---
 
 def test_manken_degisince_zincirler_de_siliniyor(render_png):

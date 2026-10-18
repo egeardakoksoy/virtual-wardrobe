@@ -47,6 +47,19 @@ def test_plan_cagri_sayisi_ve_ucreti_bildirir(dolap, db_path):
     assert p["skipped"] == []
 
 
+def test_plan_ucreti_saglayicidan_gelir(dolap, db_path):
+    """Sağlayıcı verilince ONUN fiyatı — MAI mankeninde FASHN fiyatı yazmasın (§54)."""
+    ids = [dolap["ust"], dolap["alt"]]
+    assert render.plan(ids, db_path=db_path, provider=vton.MockProvider())["cost_usd"] == 0
+
+    class Pahali(vton.MockProvider):
+        def cost_usd(self):
+            return 0.5
+
+    assert render.plan(ids, db_path=db_path,
+                       provider=Pahali())["cost_usd"] == pytest.approx(1.0)
+
+
 def test_plan_altligi_once_giydirir(dolap, db_path):
     """Zincir sırası z'ye göre artan olmalı.
 

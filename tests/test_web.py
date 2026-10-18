@@ -503,3 +503,26 @@ def test_gosterim_onbellegi_surum_adini_tasiyor():
     yol = layers.display_raw_path(5, 9)
     assert f"v{layers.RESTORE_VERSION}" in yol.name, yol.name
     assert "g5_m9" in yol.name, yol.name
+
+
+# --- Ücret ve model adı aktif modelden (§54) ---
+
+def test_dolap_aktif_modelin_adini_ve_ucretini_bildirir(client):
+    """Yükleme notu ve katman onayı sabit FASHN fiyatı ("~$0.075") yazıyordu —
+    MAI mankeninde de. Artık sunucu aktif modelin adını ve ücretini veriyor."""
+    m = client.get("/api/wardrobe").json()["mannequin"]
+    assert (m["provider"], m["model"]) == ("mock", "mock")   # testte anahtar yok
+    assert m["layer_cost_usd"] == 0
+    assert m["upload_cost_usd"] == 0
+
+
+def test_dolap_ozeti_foundry_mai_ucretini_gosterir(client, monkeypatch):
+    monkeypatch.setenv("FOUNDRY_RESOURCE", "ornek-kaynak")
+    monkeypatch.setenv("FOUNDRY_API_KEY", "test-anahtari")
+    monkeypatch.setenv("FOUNDRY_IMAGE_DEPLOYMENT", "MAI-Image-2.6")
+    monkeypatch.setenv("FOUNDRY_VISION_DEPLOYMENT", "gpt-4.1-mini")
+
+    m = client.get("/api/wardrobe").json()["mannequin"]
+    assert (m["provider"], m["model"]) == ("foundry", "MAI-Image-2.6")
+    assert m["layer_cost_usd"] == pytest.approx(vton.MAI_CALL_USD)
+    assert m["upload_cost_usd"] == pytest.approx(vton.MAI_CALL_USD + 0.001)

@@ -299,6 +299,14 @@ def test_kredi_maliyeti_dokumandan():
     assert vton.FashnProvider(generation_mode="quality", resolution="4k").credits() == 5
 
 
+def test_ucret_kredi_basina_fiyattan():
+    """FASHN KREDİ başına ücretliyor (help.fashn.ai): tryon-max balanced+1k =
+    2 kredi = $0.15. Arayüz eskiden çağrı başına $0.075 yazıyordu (§54)."""
+    assert vton.FashnProvider().cost_usd() == pytest.approx(0.15)
+    assert vton.FashnProvider(generation_mode="fast",
+                              resolution="1k").cost_usd() == pytest.approx(0.075)
+
+
 def test_fashn_api_anahtari_doctor_da_listeleniyor():
     from wardrobe import secrets
     assert any(k[0] == "FASHN_API_KEY" for k in secrets.KNOWN_KEYS)

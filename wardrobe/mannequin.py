@@ -454,6 +454,46 @@ def build_extract_base(mannequin_id: int | None = None, db_path=None,
     return hedef
 
 
+# Yeni (ya da fotoğrafı değişen) mankende yeşil çıkarım base'i kendiliğinden
+# kuruluyor — bkz. `_yesil_tabani_kur`. Testler kapatıyor (conftest): kişi
+# maskesi rembg ile kurulu makinede manken başına 1-2 sn ekliyor. Davranışın
+# kendisi test_mannequin.py'de açılarak test ediliyor.
+YESIL_TABAN_OTOMATIK = True
+
+
+def _cikarim_varyantlarini_sil(mannequin_id: int, db_path=None) -> None:
+    """Mankenin tüm çıkarım varyantlarını siler (tam + üst + alt)."""
+    for slot in (None, "ust", "alt"):
+        try:
+            extract_base_path(mannequin_id, db_path, slot).unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def _yesil_tabani_kur(mannequin_id: int, kind: str, db_path=None) -> None:
+    """Mankenin fotoğrafı yazıldıktan sonra yeşil çıkarım base'ini kurar.
+
+    NEDEN OTOMATİK — sıfırdan kurulum senaryosunda bulundu (§53): yeşil base
+    elle kurulan bir adımdı ve yalnızca deneme yapılan mankenlerde vardı.
+    Yeni mankende varyant yoksa `drop_extract_color` gerçek kıyafetin paletini
+    hedefliyor ve yeni kıyafetin gölgelerini siliyor — MAI katmanlarındaki
+    deliklerin nedeni buydu. Yeşil base ile ölçüldü (§51.8): #7 delik
+    3.258 → 1.200 px, #13 9.850 → 4.734 px, gözle de doğrulandı.
+
+    Önce ESKİ varyantlar siliniyor: fotoğraf değiştiyse onlar eski geometriye
+    ait ve `extraction_image` onları seçerdi. Placeholder'a kurulmuyor
+    (geliştirme figürü). Kurulamazsa manken yine ekleniyor ve çıkarım gerçek
+    fotoğrafa düşüyor — yani en kötü durum eski davranış. Ücretsiz.
+    """
+    _cikarim_varyantlarini_sil(mannequin_id, db_path)
+    if not YESIL_TABAN_OTOMATIK or kind not in ("photo", "generated"):
+        return
+    try:
+        build_extract_base(mannequin_id, db_path)
+    except Exception:
+        _cikarim_varyantlarini_sil(mannequin_id, db_path)
+
+
 def display_base(db_path=None, mannequin_id: int | None = None) -> Path:
     """Bindirmede kullanılacak base — yoksa üretir."""
     yol = display_base_path(mannequin_id=mannequin_id, db_path=db_path)
@@ -675,6 +715,9 @@ def delete(mannequin_id: int, db_path=None) -> dict:
         kok = Path(hedef["image_path"]).stem
         silinecek += [Path(hedef["image_path"]),
                       MANNEQUIN_DIR / f"{kok}_display.png"]
+        # Çıkarım varyantları da aynı kökten (bkz. extract_base_path).
+        silinecek += [MANNEQUIN_DIR / f"{kok}_extract{ek}.png"
+                      for ek in ("", "_ust", "_alt")]
 
     for p in silinecek:
         try:
@@ -786,6 +829,9 @@ def _save(
             "WHERE id = ?",
             (kind, str(path), json.dumps(params, ensure_ascii=False), mannequin_id),
         )
+    # Yeşil çıkarım base'i de eski fotoğrafa ait — gösterim base'iyle aynı
+    # sebep, ama bu eksikti: bayat varyant kalınca VTON'a eski geometri gidiyordu.
+    _yesil_tabani_kur(mannequin_id, kind, db_path)
     stale = _invalidate_layers(mannequin_id, db_path)
     return {"kind": kind, "image_path": str(path), "size": MANNEQUIN_SIZE,
             "mannequin_id": mannequin_id, "name": row["name"], "created": False,
@@ -820,6 +866,7 @@ def _yeni_manken(
     with connect(db_path) as conn:
         conn.execute("UPDATE mannequins SET image_path = ? WHERE id = ?",
                      (str(path), mannequin_id))
+    _yesil_tabani_kur(mannequin_id, kind, db_path)
     set_active(mannequin_id, db_path)
 
     return {"kind": kind, "image_path": str(path), "size": MANNEQUIN_SIZE,

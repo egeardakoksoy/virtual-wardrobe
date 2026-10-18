@@ -8,15 +8,17 @@
 **GitHub:** https://github.com/egeardakoksoy/virtual-wardrobe (public)
 **Durum:** Faz 0 ✅ · Faz 1 ✅ · Faz 2 ✅ · Faz 4 ✅ · Faz 6 ✅ · Faz 3 ertelendi ·
   **Microsoft AI Innovators staj teslimi TAMAMLANDI, sertifika alındı (17.8.2026)**
-**Testler:** 406 geçiyor (`pytest`, ~95 sn, API çağırmaz) — 35'i Foundry
+**Testler:** 432 geçiyor (`pytest`, ~95 sn, API çağırmaz) — 50'si Foundry
 **Dolap:** 12 kıyafet (7 üst + #23 oxford gömlek, 4 alt) · aksesuar YOK (§47.7)
-**Mankenler:** `base` (#1, 12 katman, **aktif**) · `manken 2` (#139, 3 katman)
-**Sağlayıcı:** FASHN doğrudan API, `tryon-max` (varsayılan). Foundry eklendi (§48, ölçülmedi).
+**Mankenler:** `base` (#1, 12 FASHN katmanı) · `manken 2` (#139, 3 katman) ·
+  `MAI` (#174, 12 MAI katmanı, **aktif**)
+**Sağlayıcı:** mankene bağlı (§51.7): `base` → FASHN `tryon-max`; `MAI` → Foundry
+  MAI-Image-2.6 (ölçüldü, §51.6–§51.9). Kıyafet okuma: Foundry gpt-4.1-mini (§52).
 **Kredi:** BİLİNMİYOR — §47 aksesuar denemeleri ve video çekimi (4 yükleme) harcadı.
   FASHN panelinden kontrol et.
 **Sunucu:** `Dolabi Ac.bat` çift tıkla (ya da `python cli.py web`) → http://127.0.0.1:8000
 
-> ### ⚠ YENİ SOHBETTE İLK İŞ: §49, §50 ve §51'e bak
+> ### ⚠ YENİ SOHBETTE İLK İŞ: §49–§54'e bak
 > Staj teslimi bitti. Açık iş: bir Microsoft çalışanının Foundry talebi.
 > gpt-image-2 ve Claude'a kota çıkmadı (§50); Microsoft'un MAI modelleri için
 > destek eklendi ve **MAI-Image-2.6 ile gerçek ölçüm yapıldı** — gömlek,
@@ -4467,3 +4469,176 @@ talimatı var, etkilenmedi. #11 yeniden üretildi (1 çağrı): etiket yok, gö�
 ve kol baskısı yerinde. Tek deneme — kesin kanıt değil, ama her yeni kıyafete
 de uygulanıyor. Etiketli sürüm: `data/layer_surumleri/mai_yesil_etiketli_20261018/`.
 Fotoğraf tarafında en sağlam önlem: çekerken etiketi içeri katlamak.
+
+---
+
+## 52. Kıyafet okuma da Foundry'de: görsel analiz dağıtımı (18 Ekim 2026)
+
+Kendi aboneliğimizde Claude'a kota çıkmadığı için (§50) kıyafet okuma
+(öznitelik çıkarımı) hâlâ birinci taraf Anthropic API'sindeydi. Foundry'de
+görsel girdi ve yapılandırılmış çıktı destekleyen çok sayıda sohbet modeli var
+(gpt-4.1 / 4.1-mini / 4.1-nano, gpt-4o / 4o-mini, gpt-5 / 5-mini, gpt-5.4-mini,
+gpt-6 ailesi; Microsoft'tan Phi-4-multimodal) — hepsi aynı OpenAI uyumlu
+sohbet arayüzünü konuşuyor.
+
+- `FOUNDRY_VISION_DEPLOYMENT`: tanımlıysa kıyafet okuma ve düzenleme talimatı
+  çevirisi o dağıtıma gidiyor — `{kaynak}.openai.azure.com/openai/v1/chat/completions`,
+  görsel data URL, aynı `GARMENT_SCHEMA`. Düz HTTP (httpx), openai paketi
+  gerekmiyor. `attr_source` = "foundry".
+- Sıra: Foundry'deki Claude → Foundry görsel analiz → birinci taraf Claude →
+  mock. Foundry açık bir tercih (dağıtım adı yazılmış).
+- Model farkları istekten bir şey düşürülerek aşılıyor: JSON şeması → JSON
+  modu → serbest metin (JSON ```json``` içinde ya da cümleyle gelse de
+  ayıklanıyor); `max_completion_tokens` reddedilirse `max_tokens`. Şemayı
+  uygulamayan modeller için alan listesi talimatta da var.
+- 8 test (Foundry 46, toplam 417). Gerçek çağrı testi:
+  `data/foundry_deneme/gorsel_analiz_testi.py <dağıtım>` — Claude'un kayıtlı
+  öznitelikleriyle alan alan karşılaştırıyor, dolaba yazmıyor.
+
+**ÖLÇÜLMEDİ:** hangi modele kota çıkacağı abonelikte görülecek; modelin
+öznitelik kalitesi (özellikle kategori ve renk adı) Claude'la karşılaştırılmalı.
+
+### 52.1 İlk gerçek ölçüm — gpt-4.1-mini (18 Ekim 2026)
+
+Kendi aboneliğimizde `gpt-4.1-mini` dağıtılabildi (Global Standard, dakikada
+5M belirtece kadar kota). `gorsel_analiz_testi.py`, 4 kıyafet, Claude'un
+kayıtlı öznitelikleri referans:
+
+| alan | Claude ile aynı | not |
+|---|---|---|
+| category | **4/4** | katman bölgesini ve z-sırasını belirleyen asıl alan |
+| pattern, style | 4/4 | |
+| warmth, formality, seasons | 3/4 | chino'da 1 puan / bir mevsim farkı |
+| color_name | 2/4 (+1 yakın) | **chino'ya "açık gri" dedi (bej)**; "açık gri melanj" → "açık gri" |
+| subcategory, fabric | daha genel | "düğmeli yaka oxford gömlek" → "butonlu klasik gömlek", "chino pantolon" → "dar kesim pantolon" |
+
+- JSON şeması ilk istekte kabul edildi (geri düşme gerekmedi).
+- Kıyafet başına ~3 sn, ~2.100 belirteç (görsel 720–768) → ~0.1 sent.
+- Notlar kullanışlı ("Küçük çapa baskılı, bel kısmında bağcıklı rahat kesim şort").
+
+Sonuç: dolabın çalışması için gereken alanlarda (kategori, desen, stil) yeterli;
+etiketlerde Claude daha ayrıntılı ve renk adında daha isabetli. Daha güçlü bir
+model (gpt-4.1, gpt-5-mini) aynı testle denenebilir — dağıtım adı vermek yetiyor.
+
+**Devreye alındı (18 Ekim 2026):** `.env`'de
+`FOUNDRY_VISION_DEPLOYMENT=gpt-4.1-mini`. Yeni eklenen her kıyafet Foundry'de
+okunuyor (`attr_source` = "foundry"); Anthropic'e istek gitmiyor. Mevcut 12
+kıyafetin kayıtlı öznitelikleri (Claude) değişmedi. Geri almak: satırı yorum
+yapmak.
+
+## 53. Sıfırdan kurulum: dışarıdan deneyen biri ne görür (18 Ekim 2026)
+
+Soru: depo GitHub'dan indirilip boş bir dolapla ve yalnızca Foundry ayarlarıyla
+açılırsa katmanlar MAI ile, kıyafet adları gpt-4.1-mini ile mi üretilir? Kod
+yolu baştan sona izlendi:
+
+- **Görüntü — evet.** Yeni mankende `provider` ayarı yok; sıra FASHN → fal →
+  Foundry → mock. FASHN/fal anahtarı yoksa Foundry; dağıtım adı `MAI-Image`
+  ile başlıyorsa MAI yolu (başka ad verildiyse `FOUNDRY_IMAGE_API=mai`).
+- **Kıyafet okuma — evet.** `FOUNDRY_VISION_DEPLOYMENT` tanımlıysa (ve
+  Foundry'de Claude dağıtımı yoksa) o model okuyor.
+- **Anahtarlar depoda yok** (doğrusu bu): deneyen kişi kendi kaynağında iki
+  dağıtım açıp `.env`'e dört satır yazmalı (README, "Microsoft Foundry ile
+  çalıştırma").
+
+**Bulunan eksik — düzeltildi.** §51.8'de MAI deliklerini kapatan yeşil çıkarım
+base'i elle kurulan bir adımdı: `build_extract_base` uygulamada hiçbir yerden
+çağrılmıyordu. Sıfırdan kurulumda yeni mankende varyant olmayacak,
+`drop_extract_color` gerçek kıyafetin paletini hedefleyecek ve sitede görülen
+delikler geri gelecekti. Aynı incelemede iki yan hata çıktı:
+
+- Fotoğraf değişince gösterim base'i siliniyordu ama çıkarım varyantı
+  kalıyordu → `extraction_image` VTON'a eski fotoğrafın geometrisini verirdi.
+- Manken silinince çıkarım varyantları diskte kalıyordu.
+
+Çözüm (`mannequin._yesil_tabani_kur`): manken fotoğrafı yazılınca (yeni manken
+ya da fotoğraf değişimi) eski varyantlar silinip yeşil base kuruluyor. Ücretsiz,
+yerel. Placeholder'a kurulmuyor; kurulamazsa manken yine ekleniyor ve çıkarım
+gerçek fotoğrafa düşüyor (eski davranış). `delete()` varyantları da siliyor.
+**Mevcut mankenlere dokunulmuyor:** `base` (#1) hâlâ varyantsız, FASHN
+katmanları aynen duruyor.
+
+Doğrulama:
+
+- MAI mankeninin fotoğrafı (`base_174.png`) geçici bir klasörde
+  `add_from_photo` ile yeni manken olarak eklendi. Otomatik kurulan yeşil base,
+  elle kurulan `base_174_extract.png` ile **piksel piksel aynı** (%100, en
+  büyük fark 0; boyanan alan %21.87). Gözle de aynı. Gerçek `data/` ve DB'ye
+  yazılmadı.
+- 6 yeni test (toplam 423). Testlerde otomatik kurulum kapalı (conftest —
+  kırpmayı flood'a sabitlemekle aynı gerekçe: rembg süresi); `yesil_otomatik`
+  fikstürü açıp davranışı test ediyor. Takım süresi 42 → 49 sn.
+
+**Hâlâ açık (sıfırdan kurulumu etkileyen):**
+
+- Dolap boşken ilk açılışta (`/api/base.png` → `ensure()` → `generate()`)
+  görüntü modeli bir manken üretiyor: 1 ücretli çağrı. MAI'nin üretim
+  (`/generations`) yolu sahte istemciyle test edildi, **gerçek çağrıyla
+  ölçülmedi**. Başarısız olursa placeholder figür çıkar; kendi fotoğrafını
+  eklemek her durumda daha iyi.
+- ~~Render maliyet tahmini sabit FASHN fiyatı~~ → §54'te çözüldü: ücret ve
+  model adı artık aktif sağlayıcıdan.
+
+## 54. "Gerçekçi göster" ve düzenleme hangi modelle — ve ne tutuyor (18 Ekim 2026)
+
+Soru: MAI mankeninde gerçekçi render ve düzenleme komutları da MAI ile mi
+çalışıyor, maliyet tahmini ona göre mi?
+
+**Bulunan:**
+
+- **Gerçekçi göster — evet.** `/api/render*` sağlayıcıyı `get_provider()`'dan
+  alıyor, yani aktif mankenin sağlayıcısından (MAI mankeninde Foundry/MAI).
+  Önbellek anahtarı da sağlayıcı adını taşıyor (`..._foundry`).
+- **Düzenleme — HAYIR.** `get_edit_provider()` sabit sıralıydı: FASHN →
+  Foundry. FASHN anahtarı olan kurulumda MAI mankeninde render MAI ile, aynı
+  render'ın düzenlemesi FASHN ile yapılıyordu — kullanıcıya görünmeden.
+  (Yalnızca Foundry'li sıfırdan kurulumda FASHN olmadığı için zaten MAI.)
+- **Ücret tahmini her yerde sabit FASHN sayısıydı ve FASHN için bile
+  yanlıştı.** Render `CALL_COST_USD = 0.075` (fal'daki v1.6'nın fiyatı), katman
+  onayı "~$0.075", yükleme notu "~$0.10", düzenleme "2 kredi". FASHN'ın API
+  fiyatı KREDİ başına $0.075 ve tryon-max balanced+1k = 2 kredi → çağrı $0.15
+  (help.fashn.ai, Ekim 2026). FASHN çağrıları yarı fiyata gösteriliyordu.
+
+**Yapılan:**
+
+- `get_edit_provider()`: aktif mankenin sağlayıcısı (ya da `VTON_PROVIDER`)
+  öne alınıyor; adaylar yine yalnızca düzenleme yapabilen FASHN ve Foundry.
+- Her sağlayıcıda `cost_usd()`; fiyatlar ve kaynakları tek yerde
+  (`vton.FASHN_CREDIT_USD` bloğu). `vton.model_label()`: arayüzdeki model adı
+  (Foundry'de dağıtım adı). `vision.cost_usd_estimate()`: okuma ücreti.
+- `render.plan`, `edits.plan` ve `/api/wardrobe`'un manken özeti ücreti ve
+  model adını sağlayıcıdan veriyor. Arayüzde sabit fiyat kalmadı: render
+  bilgisi, düzenleme bilgisi, katman onayı ve yükleme notu sunucudan geliyor.
+
+| | çağrı başına | kaynak |
+|---|---|---|
+| FASHN tryon-max (balanced, 1k) — giydirme ve düzenleme | $0.15 | 2 kredi × $0.075 (help.fashn.ai) |
+| MAI-Image-2.6 | ~$0.06 | Microsoft belirteç fiyatı: görsel çıktı $38/M, görsel girdi $8/M, metin $5/M. ~1 MP çıktı ≈ 1.024 belirteç ≈ $0.039; girdi görselleri belgelenmemiş → yukarı yuvarlandı |
+| MAI-Image-2.6-Flash | ~$0.03 | belirteç fiyatı yarı |
+| gpt-image (high, 1024×1536) | ~$0.25 | gpt-image-1 liste fiyatı; gpt-image-2 doğrulanmadı |
+| kıyafet okuma: gpt-4.1-mini / Claude | ~$0.001 / ~$0.02 | §52.1 ölçümü / tahmin |
+
+Doğrulama: 9 yeni test (toplam 432). Sitede MAI mankeni aktifken, yalnızca
+ücretsiz plan uçları çağrılarak: render bilgisi "2 çağrı · MAI-Image-2.6 ·
+~$0.12 · 30-80 sn.", düzenleme "… · MAI-Image-2.6 · her düzenleme ~$0.06 · …",
+yükleme notu "~$0.06". Konsolda hata yok.
+
+**Açık:**
+
+- MAI rakamı tahmin. Kesin rakam Azure Cost Management → Maliyet analizi'nde
+  (18 Ekim'de ~25 MAI çağrısı yapıldı; fatura ~1 gün gecikmeli). Gerçek rakam
+  çıkınca `MAI_CALL_USD` ona göre düzeltilmeli.
+- **Gerçekçi render MAI ile denendi** (kullanıcı, 18 Ekim 15:38): #6 siyah
+  keten şort + #10 sarı baskılı tişört, 2 çağrı → `m174_6-10_foundry.png`
+  (sondaki ad çağrıyı yapan sağlayıcı). Gözle temiz: baskının yazısı ve logosu
+  net, yüz ve duvar korunmuş.
+- **Düzenleme MAI ile denendi** (kullanıcı, 15:41): katman görüntüsü üzerinde,
+  #6 + #13 pembe keten gömlek, "kolları kıvır" → "roll up the sleeves" (çeviri
+  gpt-4.1-mini ile). Zincir kaydında `credits: 1` → Foundry (FASHN 2 yazardı).
+  Sayıyla: değişen piksel %2.8 ve değişimin %90'ı kol bandında (y %48–68);
+  yüzde ve duvarda ortalama fark ~6.5, gözle fark edilmiyor. Gözle: kollar
+  dirsek altına kadar kıvrılmış, gömleğin dokusu ve rengi aynı. ~27 sn.
+
+Sonuç: MAI mankeninde dört işin hepsi Microsoft modelinde — katman, gerçekçi
+render ve düzenleme MAI-Image-2.6'da, kıyafet okuma ve talimat çevirisi
+gpt-4.1-mini'de.
