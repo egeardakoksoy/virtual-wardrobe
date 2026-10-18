@@ -408,7 +408,162 @@ def test_model_her_seyi_yeniden_cizse_de_katman_temiz(
     assert alfa[110, 100] > 200, "kıyafetin kendisi katmanda yok"
 
 
+# --- MAI: Microsoft'un kendi görüntü modelleri (ayrı API) ---
+
+class _SahteMaiYaniti:
+    def __init__(self, govde: dict, durum: int = 200):
+        self.status_code, self._govde = durum, govde
+        self.text = json.dumps(govde)
+
+    def json(self):
+        return self._govde
+
+
+def _mai_sunucusu(monkeypatch, ciz, *, durum: int = 200) -> list:
+    """`httpx.post`'u sahteler: çağrıları kaydeder, `ciz(url, kw)` ile görsel döner."""
+    import httpx
+
+    cagrilar = []
+
+    def post(url, **kw):
+        cagrilar.append((url, kw))
+        if durum >= 400:
+            return _SahteMaiYaniti({"error": {"message": "erişim reddedildi"}}, durum)
+        return _SahteMaiYaniti({"data": [{"b64_json": _b64(ciz(url, kw))}]})
+
+    monkeypatch.setattr(httpx, "post", post)
+    return cagrilar
+
+
+def _mai_kisiyi_ciz(url, kw) -> Image.Image:
+    """MAI'nin multipart isteğini `_her_seyi_yeniden_ciz`'in beklediği şekle çevirir."""
+    gorseller = [parca for alan, parca in kw["files"] if alan == "image"]
+    return _her_seyi_yeniden_ciz({"image": gorseller, "size": f"{W}x{H}"})
+
+
+def test_mai_dagitimi_adindan_taninir(monkeypatch):
+    _foundry_ortami(monkeypatch, image="MAI-Image-2.6-Flash")
+    assert foundry.image_api() == "mai"
+    monkeypatch.setenv("FOUNDRY_IMAGE_DEPLOYMENT", "gpt-image-2")
+    assert foundry.image_api() == "openai"
+    # Dağıtıma özel ad verildiyse aile açıkça söyleniyor.
+    monkeypatch.setenv("FOUNDRY_IMAGE_DEPLOYMENT", "benim-gorsel-modelim")
+    monkeypatch.setenv("FOUNDRY_IMAGE_API", "mai")
+    assert foundry.image_api() == "mai"
+
+
+def test_mai_openai_paketi_gerektirmez(monkeypatch):
+    _foundry_ortami(monkeypatch, image="MAI-Image-2.6-Flash")
+    monkeypatch.setitem(sys.modules, "openai", None)   # import → ImportError
+    assert vton.FoundryImageProvider().available()
+    assert vton.get_provider().name == "foundry"
+
+
+@pytest.mark.parametrize("dagitim, ayar, beklenen", [
+    ("MAI-Image-2.6-Flash", None, True),
+    ("MAI-Image-2.5-Flash", None, False),   # 2.5 bu alanı tanımıyor → 400
+    ("MAI-Image-2.6", "false", False),
+    ("ozel-ad", "true", True),
+])
+def test_mai_auto_aspect_ayari(monkeypatch, dagitim, ayar, beklenen):
+    _foundry_ortami(monkeypatch, image=dagitim)
+    if ayar:
+        monkeypatch.setenv("FOUNDRY_MAI_AUTO_ASPECT", ayar)
+    assert foundry.mai_auto_aspect() is beklenen
+
+
+def test_mai_giydirme_istegi_dogru_sekilde(monkeypatch, tmp_path):
+    _foundry_ortami(monkeypatch, image="MAI-Image-2.6-Flash")
+    monkeypatch.setattr("wardrobe.cutout.person_mask_for", lambda p: _kisi_maskesi())
+    sahne = _sahne(tmp_path)
+    kiyafet = tmp_path / "k.png"
+    Image.new("RGBA", (80, 80), (*KIRMIZI, 255)).save(kiyafet)
+    cagrilar = _mai_sunucusu(monkeypatch, _mai_kisiyi_ciz)
+
+    out = vton.FoundryImageProvider().try_on(sahne, kiyafet, "ust")
+
+    url, kw = cagrilar[0]
+    assert url == "https://ornek-kaynak.services.ai.azure.com/mai/v1/images/edits"
+    assert kw["headers"] == {"api-key": "test-anahtari"}
+    assert [alan for alan, _ in kw["files"]] == ["image", "image"]   # kişi + kıyafet
+    assert kw["data"]["model"] == "MAI-Image-2.6-Flash"              # DAĞITIM adı
+    assert kw["data"]["prompt"] == vton.giydirme_talimati("ust")
+    assert kw["data"]["auto_aspect_ratio"] == "true"
+    assert not {"size", "quality", "n", "output_format"} & set(kw["data"])
+
+    # Bölge kısıtlaması MAI'de de devrede: model yüzü değiştirdi, çıktıda yüz
+    # base'le birebir aynı.
+    base = np.asarray(Image.open(sahne).convert("RGB"), np.int16)
+    assert np.abs(np.asarray(out, np.int16)[:20] - base[:20]).max() == 0
+    assert out.size == (W, H)
+
+
+def test_mai_25_istegine_auto_aspect_eklenmez(monkeypatch, tmp_path):
+    _foundry_ortami(monkeypatch, image="MAI-Image-2.5-Flash")
+    monkeypatch.setattr("wardrobe.cutout.person_mask_for", lambda p: None)
+    cagrilar = _mai_sunucusu(monkeypatch, _mai_kisiyi_ciz)
+
+    vton.FoundryImageProvider().try_on(_sahne(tmp_path), _sahne(tmp_path), "ust")
+
+    assert "auto_aspect_ratio" not in cagrilar[0][1]["data"]
+
+
+def test_mai_duzenleme_tek_gorsel_ve_koruma_eki(monkeypatch, tmp_path):
+    _foundry_ortami(monkeypatch, image="MAI-Image-2.6")
+    cagrilar = _mai_sunucusu(
+        monkeypatch, lambda url, kw: Image.new("RGB", (512, 768), (10, 20, 30)))
+
+    out = vton.FoundryImageProvider().edit(_sahne(tmp_path), "roll up the sleeves")
+
+    url, kw = cagrilar[0]
+    assert url.endswith("/mai/v1/images/edits")
+    assert len(kw["files"]) == 1
+    assert kw["data"]["prompt"].startswith("roll up the sleeves")
+    assert "Keep the person's identity" in kw["data"]["prompt"]
+    assert out.size == (W, H)
+
+
+def test_mai_manken_uretimi_piksel_sinirina_sigar(monkeypatch):
+    """864x1296 (1.12 MP) MAI-2.5'in 1 MP tavanını aşıyor: oran korunarak
+    küçültülüp istenir, çıktı istenen boyuta geri ölçeklenir."""
+    _foundry_ortami(monkeypatch, image="MAI-Image-2.5")
+    cagrilar = _mai_sunucusu(monkeypatch, lambda url, kw: Image.new(
+        "RGB", (kw["json"]["width"], kw["json"]["height"]), (1, 2, 3)))
+
+    out = vton.FoundryImageProvider().text_to_image("a person standing", (864, 1296))
+
+    url, kw = cagrilar[0]
+    w, h = kw["json"]["width"], kw["json"]["height"]
+    assert url.endswith("/mai/v1/images/generations")
+    assert w * h <= 1024 * 1024 and min(w, h) >= 768
+    assert abs(w / h - 864 / 1296) < 0.01
+    assert out.size == (864, 1296)
+
+
+def test_mai_hatasi_anahtari_sizdirmaz(monkeypatch, tmp_path):
+    _foundry_ortami(monkeypatch, image="MAI-Image-2.6")
+    _mai_sunucusu(monkeypatch, _mai_kisiyi_ciz, durum=401)
+
+    with pytest.raises(RuntimeError) as hata:
+        vton.FoundryImageProvider().edit(_sahne(tmp_path), "roll up the sleeves")
+
+    assert "401" in str(hata.value)
+    assert "test-anahtari" not in str(hata.value)
+
+
 # --- doctor ---
+
+def test_doctor_mai_modunu_gosterir(monkeypatch, capsys):
+    import cli
+
+    _foundry_ortami(monkeypatch, image="MAI-Image-2.6-Flash")
+    cli._doctor_foundry()
+    cikti = capsys.readouterr().out
+
+    assert "MAI görüntü API'si" in cikti
+    assert "openai paketi" not in cikti           # MAI'de gerekmiyor
+    assert "test-anahtari" not in cikti
+
 
 def test_doctor_foundry_bolumu_anahtari_yazmaz(monkeypatch, capsys):
     import cli
@@ -440,3 +595,47 @@ def test_komut_satiri_foundry_saglayicisini_kabul_ediyor():
         ["build-layers", "--id", "3", "--provider", "foundry"]).provider == "foundry"
     assert parser.parse_args(
         ["render", "3", "--provider", "foundry"]).provider == "foundry"
+
+
+# --- Mankene bağlı sağlayıcı (§51.7) ---
+
+def _iki_manken(monkeypatch, tmp_path, db_path) -> tuple[int, int]:
+    """Aynı fotoğraftan iki manken: A (sağlayıcısız) ve MAI (foundry). MAI aktif."""
+    monkeypatch.setattr("db.DB_PATH", db_path)
+    monkeypatch.setattr("wardrobe.mannequin.MANNEQUIN_SIZE", (W, H))
+    a = mannequin.from_photo(_sahne(tmp_path), name="A")["mannequin_id"]
+    mai = mannequin.from_photo(_sahne(tmp_path), name="MAI")["mannequin_id"]
+    mannequin.set_provider(mai, "foundry")
+    return a, mai
+
+
+def test_aktif_mankenin_saglayicisi_secilir(monkeypatch, tmp_path, db_path):
+    """Hangi manken aktifse onun sağlayıcısı. Küresel bir ayar, FASHN mankenine
+    geçip kıyafet ekleyenin katmanını sessizce MAI ile üretirdi."""
+    monkeypatch.setenv("FASHN_API_KEY", "y")
+    _foundry_ortami(monkeypatch, image="MAI-Image-2.6")
+    a, mai = _iki_manken(monkeypatch, tmp_path, db_path)
+
+    assert vton.get_provider().name == "foundry"     # MAI aktif
+    mannequin.set_active(a)
+    assert vton.get_provider().name == "fashn"       # A: küresel sıra, FASHN önde
+
+
+def test_acik_ad_ve_ortam_degiskeni_mankenin_onune_gecer(monkeypatch, tmp_path, db_path):
+    _foundry_ortami(monkeypatch, image="MAI-Image-2.6")
+    _iki_manken(monkeypatch, tmp_path, db_path)
+
+    assert vton.get_provider("mock").name == "mock"
+    monkeypatch.setenv("VTON_PROVIDER", "mock")
+    assert vton.get_provider().name == "mock"
+
+
+def test_manken_saglayicisi_dogrulanir_ve_kaldirilabilir(monkeypatch, tmp_path, db_path):
+    _, mai = _iki_manken(monkeypatch, tmp_path, db_path)
+
+    with pytest.raises(ValueError):
+        mannequin.set_provider(mai, "olmayan-saglayici")
+    assert mannequin.provider_for(mai) == "foundry"
+    mannequin.set_provider(mai, None)
+    assert mannequin.provider_for(mai) is None
+    assert vton.get_provider().name == "mock"        # anahtar yok → küresel sıra

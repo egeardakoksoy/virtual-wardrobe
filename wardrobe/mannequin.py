@@ -593,6 +593,48 @@ def set_active(mannequin_id: int, db_path=None) -> dict:
     return {"active_id": int(mannequin_id)}
 
 
+def provider_for(mannequin_id: int | None = None, db_path=None) -> str | None:
+    """Mankene bağlı sanal deneme sağlayıcısı (`params_json["provider"]`), yoksa None.
+
+    NEDEN MANKENE BAĞLI: aynı fotoğraftan iki manken açılıp biri FASHN, biri
+    MAI katmanlarıyla kullanılıyor (§51.7). Sağlayıcı yalnızca küresel bir ayar
+    olsaydı (VTON_PROVIDER), FASHN mankenine geçip kıyafet ekleyenin katmanı
+    sessizce MAI ile üretilir, iki dolap birbirine karışırdı. Hata fırlatmaz.
+    """
+    row = _row(mannequin_id, db_path)
+    if not row:
+        return None
+    try:
+        return (json.loads(row["params_json"] or "{}") or {}).get("provider")
+    except (ValueError, TypeError, AttributeError):
+        return None
+
+
+def set_provider(mannequin_id: int, provider: str | None, db_path=None) -> dict:
+    """Mankenin sağlayıcısını ayarlar; None küresel sıraya döndürür. HİÇBİR ŞEY SİLMEZ.
+
+    Var olan katmanlar yeniden üretilmiyor — ayar yalnızca bundan sonra
+    üretilecek katmanları ve "Gerçekçi Göster"i etkiliyor.
+    """
+    from wardrobe import vton
+
+    if provider is not None and provider not in vton._PROVIDERS:
+        raise ValueError(f"bilinmeyen sağlayıcı: {provider} "
+                         f"(seçenekler: {', '.join(vton._PROVIDERS)})")
+    row = _row(mannequin_id, db_path)
+    if not row:
+        raise ValueError(f"manken bulunamadı: {mannequin_id}")
+    params = json.loads(row["params_json"] or "{}") or {}
+    if provider is None:
+        params.pop("provider", None)
+    else:
+        params["provider"] = provider
+    with connect(db_path) as conn:
+        conn.execute("UPDATE mannequins SET params_json = ? WHERE id = ?",
+                     (json.dumps(params, ensure_ascii=False), mannequin_id))
+    return {"mannequin_id": int(mannequin_id), "provider": provider}
+
+
 def delete(mannequin_id: int, db_path=None) -> dict:
     """Mankeni ve ONA AİT her şeyi siler — GERİ ALINAMAZ.
 

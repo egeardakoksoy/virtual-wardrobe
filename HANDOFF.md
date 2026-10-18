@@ -8,7 +8,7 @@
 **GitHub:** https://github.com/egeardakoksoy/virtual-wardrobe (public)
 **Durum:** Faz 0 ✅ · Faz 1 ✅ · Faz 2 ✅ · Faz 4 ✅ · Faz 6 ✅ · Faz 3 ertelendi ·
   **Microsoft AI Innovators staj teslimi TAMAMLANDI, sertifika alındı (17.8.2026)**
-**Testler:** 394 geçiyor (`pytest`, ~95 sn, API çağırmaz) — 23'ü Foundry
+**Testler:** 406 geçiyor (`pytest`, ~95 sn, API çağırmaz) — 35'i Foundry
 **Dolap:** 12 kıyafet (7 üst + #23 oxford gömlek, 4 alt) · aksesuar YOK (§47.7)
 **Mankenler:** `base` (#1, 12 katman, **aktif**) · `manken 2` (#139, 3 katman)
 **Sağlayıcı:** FASHN doğrudan API, `tryon-max` (varsayılan). Foundry eklendi (§48, ölçülmedi).
@@ -16,11 +16,12 @@
   FASHN panelinden kontrol et.
 **Sunucu:** `Dolabi Ac.bat` çift tıkla (ya da `python cli.py web`) → http://127.0.0.1:8000
 
-> ### ⚠ YENİ SOHBETTE İLK İŞ: §49 ve §50'ye bak
-> Staj teslimi bitti. Açık iş: bir Microsoft çalışanının Foundry talebi — kod
-> yazıldı ve commit'lendi ama **gerçek çağrıyla hiç denenmedi**: kendi Azure
-> hesabımızda hiçbir güncel modele kota çıkmadı (§50). Push durumu ve sıradaki
-> adımlar §49'da.
+> ### ⚠ YENİ SOHBETTE İLK İŞ: §49, §50 ve §51'e bak
+> Staj teslimi bitti. Açık iş: bir Microsoft çalışanının Foundry talebi.
+> gpt-image-2 ve Claude'a kota çıkmadı (§50); Microsoft'un MAI modelleri için
+> destek eklendi ve **MAI-Image-2.6 ile gerçek ölçüm yapıldı** — gömlek,
+> baskılı tişört ve pantolonda FASHN düzeyinde (§51.6). Push durumu ve
+> sıradaki adımlar §49 ve §51'de.
 
 ---
 
@@ -4159,3 +4160,310 @@ görünüyor, gerçek poz kayması değil. gpt-image aynı en-boy oranında
 
 Aktif mankende (#1) yeşil çıkarım varyantı yok; üretim de gerçek fotoğrafı
 kullanıyor — test üretimle aynı koşulda.
+
+---
+
+## 51. MAI görüntü modelleri (18 Ekim 2026)
+
+### 51.1 Neden
+
+Programın yöneticisi Foundry'de Microsoft'un kendi görüntü modellerinin (MAI
+ailesi) denenmesini önerdi. Talep sahibi (§48.1) de 14 Ekim'de üç şey sordu:
+
+1. Foundry API'leriyle uyumluluk gerçekten test edildi mi? Kendisi denediğinde
+   Copilot çok fazla kod değiştirmeye gitmiş, o hâliyle kullanmak istememiş.
+2. Test için örnek görseller.
+3. "FASHN bir model değil, bir ürün. Katman yaklaşımı hazır görüntü üretim
+   modelleriyle yapılabiliyor mu?"
+
+### 51.2 MAI'nin farkı (Microsoft belgesi, Eylül 2026)
+
+| | |
+|---|---|
+| Modeller | MAI-Image-2.6-Flash, 2.6, 2.5-Pro, 2.5-Flash, 2.5 — hepsi önizleme, Global Standard, hepsi hem üretim hem düzenleme |
+| Uç nokta | `https://<kaynak>.services.ai.azure.com/mai/v1/images/edits` (multipart) ve `.../generations` (JSON); başlık `api-key`. gpt-image'den AYRI bir API |
+| Düzenleme | 5 görsele kadar, tekrarlanan `image` alanıyla. Alanlar yalnızca `model`, `prompt`, `image` (+2.6'da `auto_aspect_ratio`, `web_grounding`). **Boyut alanı yok** |
+| Boyut | her kenar ≥ 768; toplam ≤ 1 MP (2.5) / ≤ 2.36 MP (2.6). Çıktı her zaman PNG, base64 |
+| Kota | Tier 0 (ücretsiz) 0 istek/dk; Tier 1'de 2.6 ve 2.6-Flash 6, 2.5'ler 2 |
+| Bölge (2.6) | eastus, westcentralus, westus, swedencentral, westeurope, southindia, uaenorth |
+
+### 51.3 Ne eklendi
+
+- `foundry.image_api()`: dağıtım adı `MAI-Image` ile başlıyorsa "mai", değilse
+  "openai" (`FOUNDRY_IMAGE_API` ile ezilebilir). Seçim **kod değişikliği
+  olmadan, yalnızca `.env` ile** — talep sahibinin "Copilot kodu değiştirdi"
+  sorununun cevabı.
+- `FoundryImageProvider._mai_istegi`: düz HTTP (`httpx`, zaten anthropic'in
+  bağımlılığı). MAI yolu `openai` paketine ihtiyaç duymuyor.
+- Bölge kısıtlaması (§48.3) MAI'de de aynen devrede.
+- `auto_aspect_ratio`: düzenlemede boyut alanı olmadığı için çıktının 2:3'ü
+  koruması buna bağlı olabilir. 2.6'da varsayılan açık
+  (`FOUNDRY_MAI_AUTO_ASPECT`); 2.5'e gönderilmiyor (orada 400).
+- Manken üretimi: 864×1296 (1.12 MP) 2.5'in 1 MP tavanını aştığı için oran
+  korunarak 836×1254 isteniyor, çıktı geri ölçekleniyor.
+- 12 test (Foundry 35, toplam 406). Duman testi MAI'yi tanıyor ve modelin
+  çıktı boyutunu / en-boy farkını yazıyor.
+
+### 51.4 Kuru çalıştırma: sahte modelle öğrenilen
+
+Duman testi MAI yolunda **gerçek fotoğraf ve gerçek kişi maskesiyle**, sahte
+bir modelle (her şeyi 3 px kaydırıyor, 12 birim parlatıyor, gövdeye mavi bir
+dikdörtgen çiziyor) uçtan uca koşuldu. Gerçek çağrı yok.
+
+| | kaplama | sızıntı px | dış fark | bant üstü kayma |
+|---|---|---|---|---|
+| FASHN (mevcut #23) | %22.1 | 3.767 | %9.23 | (+4, 0) — boyut farkından |
+| sahte model, kısıtlı | %31.5 | 151.483 | %3.96 | (0, 0) |
+| sahte model, kısıtsız | %54.6 | 371.493 | %29.74 | (−3, +2) |
+
+Gözle: kısıtsız katmanda kişinin tamamı ve duvar parçaları var. Kısıtlı
+katmanda duvar gitmiş ama **gövde bölgesinin içi (tişört, kollar, çene)
+katmanda**. Yani:
+
+**Bölge kısıtlaması bölgenin DIŞINI garanti ediyor, İÇİNİ değil.** Model
+gövdeyi birkaç piksel kaydırırsa ya da rengi genel olarak değiştirirse,
+bölgenin içindeki her şey "değişmiş" sayılıp katmana giriyor. Gerçek modelde
+ilk ölçülecek şey bu (§48.5 madde 2'nin somut hâli). Kıyafete özel eğitilmiş
+VTON modelleri (FASHN) kıyafet dışını zaten sabit tuttuğu için bu sorun
+onlarda yok — "hazır modelle yapılabilir mi" sorusunun dürüst cevabı da bu:
+bölgenin dışı evet, içi modelin ne kadar sabit kaldığına bağlı.
+
+Olası çözüm (yapılmadı, ancak ölçüm kayma gösterirse değer): farkı almadan
+önce model çıktısını base'e hizalamak — kıyafet dışı bölgelerden (baş,
+bacaklar) kaymayı ve renk/parlaklık farkını tahmin edip düzeltmek.
+
+### 51.5 Durum
+
+- Kendi aboneliğimizde **MAI-Image-2.6 dağıtılabildi** (Global Standard,
+  dakikada 6 istek) — gpt-image-2 ve Claude'da kota yoktu (§50). `.env`:
+  `FOUNDRY_IMAGE_DEPLOYMENT=MAI-Image-2.6`, Claude satırı yorumda. Uygulama
+  yine FASHN'ı kullanıyor (FASHN anahtarı önce geliyor); MAI yalnızca duman
+  testinde ve `--provider foundry` ile.
+- Talep sahibine cevap ve örnek görsel seti: `OTURUM_NOTLARI.md`.
+
+### 51.6 Gerçek ölçüm — MAI-Image-2.6, üç kıyafet (18 Ekim 2026)
+
+Duman testi `--sadece-gorsel`, kıyafet başına tek çağrı (toplam 3 çağrı;
+görsel başına ~4 sent — üçüncü taraf kaynak, resmî fiyat doğrulanmadı):
+
+| | gömlek #23 | baskılı tişört #10 | chino #16 |
+|---|---|---|---|
+| süre | 34.4 sn | 37.6 sn | 32.9 sn |
+| çıktı / en-boy farkı | 832×1248 / %0 | 832×1248 / %0 | 832×1248 / %0 |
+| bant üstü kayma (MAI) | (0, 0) | (0, 0) | (0, 0) |
+| sızıntı px — FASHN / MAI | 3.767 / 1.534 | 2 / 3 | 7.175 / 11.148 |
+| kaplama — FASHN / MAI | %22.1 / %20.7 | %16.8 / %15.4 | %14.1 / %13.5 |
+| renk ΔE¹ — FASHN / MAI | 10.9 / 8.9 | 7.0 / 6.6 | 2.2 / 5.3 |
+| MAI **kısıtlamasız** katman | kısıtlıyla aynı | kısıtlıyla aynı | **bozuk**: %29.5, 133.954 px |
+
+¹ Katmanın ortalama rengiyle kıyafet fotoğrafının (kesim) ortalaması
+arasındaki Lab uzaklığı. Çekim ışığı farkı baskın — kaba bir ölçü.
+FASHN'ın bant üstü "kayması" (+4, 0) 848×1264 çıktısının yeniden
+boyutlandırılmasından, poz değil.
+
+Gözle:
+
+- **Gömlek:** düğmeli yaka, düğmeler ve logo doğru. MAI katmanının kenarları
+  temiz; FASHN katmanında sol kolda beyaz çentikler var.
+- **Tişört:** model baskıyı ("IT'S IN MY DNA!", logo, amblem) neredeyse birebir
+  çizdi. Yaka FASHN'dan temiz (FASHN orijinalin siyah yaka bandını taşıyor).
+  Kollar açıkta kaldı ve katmana sızmadı.
+- **Chino:** bacaklar yeniden çizildi, doğal. Kısıtlamasız katmanda el, tişört
+  eteği, zemin ve duvar parçaları var — **bölge kısıtlamasının gerçek bir
+  modeldeki ilk kanıtı**. Kısıtlamalı katmanda bacak kenarlarında biraz duvar
+  sızıntısı var (FASHN'da da var); duvar renginde olduğu için uygulamada
+  görünmüyor. FASHN'ın pantolonunda sağ bacak boyunca ince beyaz bir çizgi
+  var, MAI'de yok.
+- Uygulamadaki görünümde (gösterim base'i üzerinde) üç kıyafette de MAI
+  FASHN düzeyinde: `data/foundry_deneme/karsilastirma_fashn_mai_3_kiyafet.png`
+  (her çiftte sol FASHN, sağ MAI; git'e girmez).
+
+**Sonuç:** §51.1'deki 3. sorunun cevabı ölçümle "evet": hazır bir görüntü
+modeli (MAI-Image-2.6), bölge kısıtlamasıyla FASHN düzeyinde katman
+üretebiliyor. MAI üç örnekte de pozu ve oranı korudu; §51.4'teki gövde içi
+sızıntı korkusu gerçekleşmedi. Kısıtlama gömlek ve tişörtte fark yaratmadı ama
+pantolonda olmazsa olmaz çıktı. n=3 — "her kıyafette" demek için erken;
+elbise, dış giyim, ayakkabı denenmedi.
+
+**Yeni bulgu, sağlayıcıdan bağımsız: koyu baskı yazılarının içi boşalıyor.**
+Tişört katmanında yazı bölgesinde saydam piksel oranı FASHN'da %4.9, MAI'de
+%8.2; modelin giydirilmiş çıktısında %0 — yani yazıyı model tam çiziyor,
+delikleri bizim çıkarım hattımız açıyor. Hipotez (incelenmedi): base'in
+kıyafet paletini silen filtreler koyu gri harfleri mavi tişörtün gölgeleriyle
+karıştırıyor. Uygulamada gösterim base'inin gri tişörtü deliklerden görünüp
+harfi taklit ettiği için çoğunlukla fark edilmiyor; ama ayrı bir iş olarak
+kıyafetin kendi paletiyle korunması gerekebilir.
+
+### 51.7 "MAI" mankeni: FASHN ve MAI katmanları aynı sitede (18 Ekim 2026)
+
+Kullanıcı MAI'yi web sitesinde kullanmak istedi ("FASHN sitesinin yedeğini al,
+MAI katmanlarıyla yeni bir site" ya da "şimdilik yalnızca MAI katmanları").
+Ayrı bir site yerine çoklu manken altyapısı (§28) kullanıldı:
+
+- Aynı fotoğraftan **"MAI" adlı yeni manken (#174)** açıldı
+  (`from_photo(..., name="MAI")`: yeni kayıt, aktif olur, hiçbir şey silmez;
+  `base.png` ile piksel farkı 0).
+- Katmanları MAI-Image-2.6 ile üretildi. #23, #10, #16 duman testinin
+  (kısıtlamalı) çıktılarından ücretsiz alındı — `build_layer`'a hazır çıktı
+  veren bir sağlayıcıyla, yani kayıt ve çıkarım üretimle aynı yoldan
+  (kaplamalar testtekiyle birebir). Kalan 9 kıyafet
+  `build-layers --provider foundry` ile (9 çağrı).
+- **BASE (#1) FASHN katmanlarıyla olduğu gibi duruyor.** Sitedeki manken
+  şeridinden MAI ↔ BASE geçişi ücretsiz ve hiçbir şey silmiyor.
+- Yedek: `data/layers_yedek_20261018_mai_oncesi/` +
+  `data/wardrobe_yedek_20261018_mai_oncesi.db`.
+
+**Mankene bağlı sağlayıcı** (`mannequin.provider_for` / `set_provider`,
+`params_json["provider"]`). `get_provider()` sırası: açık ad →
+`VTON_PROVIDER` → **aktif mankenin sağlayıcısı** → fashn → fal → foundry →
+mock. MAI mankeni "foundry"; BASE'in ayarı yok (küresel sıra → FASHN). Neden:
+ilk denemede küresel `VTON_PROVIDER=foundry` kullanıldı — BASE'e geçip kıyafet
+ekleyenin katmanı sessizce MAI ile üretilir, iki dolap karışırdı. Satır
+`.env`'den kaldırıldı. Etkilediği: yeni katmanlar ve "Gerçekçi Göster".
+Düzenleme sohbeti (`get_edit_provider`) FASHN'da kaldı. 3 test.
+
+Sınır: bir mankende eklenen yeni kıyafetin katmanı yalnızca O manken için
+üretiliyor; diğer mankene geçince o kıyafetin katmanı yok (gerekirse orada,
+o mankenin sağlayıcısıyla ayrıca üretilir).
+
+**Sonuç — 12 kıyafet** (uygulamadaki görünüm, gösterim base'leri üzerinde:
+`data/foundry_deneme/fashn_mai_12_kiyafet.png`, git'e girmez):
+
+| # | kıyafet | sızıntı px F / M | renk ΔE F / M | gözle |
+|---|---|---|---|---|
+| 8 | bordo polo | 1.326 / 1.168 | 4.4 / 3.2 | ikisi de iyi |
+| 9 | krem polo | 342 / 183 | 11.6 / 6.5 | **MAI tonu ~10° beje kaymış** (FASHN tonu doğru, ama fazla açık) |
+| 10 | baskılı tişört | 2 / 3 | 7.0 / 6.6 | MAI'nin yakası temiz |
+| 11 | mor tişört | 3.253 / 1.100 | 9.2 / 3.2 | ikisi de iyi |
+| 12 | kırık beyaz tişört | 114 / 71 | 6.7 / 7.7 | ikisi de iyi |
+| 13 | pembe keten gömlek | 5.304 / 2.898 | 6.1 / 5.8 | ikisi de iyi |
+| 14 | lacivert tişört | 838 / 981 | 9.7 / 14.7 | ikisi de iyi; MAI biraz koyu |
+| 23 | oxford gömlek | 3.767 / 1.534 | 10.9 / 8.9 | MAI'nin kenarları temiz |
+| 6 | siyah keten şort | 131 / 131 | 4.4 / 3.0 | ikisi de iyi (dosyalar farklı, sayılar tesadüfen eşit) |
+| 7 | desenli açık gri şort | 44 / 39 | 9.9 / 6.0 | **MAI'de iç bacakta delik** — uygulamada koyu leke |
+| 15 | bej örme şort | 1.985 / 612 | 17.6 / 11.6 | ikisi de iyi |
+| 16 | chino | 7.175 / 11.148 | 2.2 / 5.3 | FASHN'da ince beyaz çizgi var, MAI'de yok |
+
+**10/12 FASHN düzeyinde ya da daha iyi, 2 kusur — ikisinde de göz sayıyı
+veto etti:**
+
+- **#7:** MAI şortun siluetini biraz değiştirmiş; açık gri kumaşın yeni kısmı
+  açık renk duvarın önüne düşmüş, fark eşiği onu yakalayamıyor (kör nokta —
+  §7.4'teki sorunun açık renk hâli). Delik "sızıntı" sayılmadığı için sayı
+  temiz görünüyor.
+- **#9:** ortalama ΔE MAI'yi daha yakın gösteriyor, çünkü açıklık farkı
+  baskın. Ton açısı ayrıca ölçüldü: fotoğraf 88.3°, FASHN 88.0°, MAI 78.8°.
+  Göz haklı: renk ölçüsünde açıklığı ve tonu ayrı raporlamak gerekiyor.
+
+Bugünkü toplam: 12 MAI çağrısı (~48 sent, üçüncü taraf fiyatı; resmî fiyat
+doğrulanmadı). #7 için seçenekler (yapılmadı): MAI ile yeniden üretmek (model
+tohumsuz, sonuç her seferinde farklı) ya da MAI mankeninde #7'yi FASHN ile
+üretmek.
+
+### 51.8 MAI katmanlarındaki delikler ve yeşil çıkarım base'i (18 Ekim 2026)
+
+Sitede MAI mankeniyle kombin denenince iki görünür kusur çıktı: desenli gri
+şortta (#7) yanlarda ve bacak arasında gri lekeler, pembe keten gömlekte (#13)
+kolda gri çizgiler ve düğme hattında koyu bir çizgi. Sağdaki duvarda görünen
+ince çapraz çizgi kusur değil — gerçek fotoğrafta da var (arkadaki merdiven
+kenarı).
+
+**Teşhis (ücretsiz, diskteki ham çıktılardan):** MAI'nin çıktısı temiz — eski
+mavi kıyafetten iz yok. Delikleri **bizim çıkarım hattımız** açıyor; lekeler
+alttaki gösterim kıyafetinin deliklerden görünmesi. İki mekanizma:
+
+1. `drop_extract_color` yeşil çıkarım base'i için yazılmış ("risksiz, çünkü
+   aranan renk gerçek değil"). Ama yeşil varyantı olmayan mankende
+   `base_clothing_palette` GERÇEK mavi kıyafetin paletini (gölgeler dahil)
+   döndürüyor ve filtre yeni kıyafetin gölgelerini o mavinin gölgesi sanıp
+   siliyor. **Tasarım hatası: filtre her zaman çalışıyor, oysa yalnızca yeşil
+   base'de risksiz.** FASHN'da görünmüyordu — FASHN'ın çıktısında eski
+   kıyafetten mavi kalıntı olabiliyor ve filtre onları da siliyordu, yani
+   yanlışlıkla işe yarıyordu.
+2. `drop_base_leak_lab` "altında ne vardı"ya bakıyor: pembe kol cilde, gri
+   şortun gölgesi mavi şortun gölgesine benzeyince siliniyor.
+
+Filtreler kapatılınca kaplama: #7 %6.7 → %8.1 (yeşil filtresi) → %9.1
+(+ sızıntı filtresi); #13 %22.2 → %23.1 → %27.7.
+
+**Çözüm denemesi — yeşil çıkarım base'i (§44), 2 çağrı:** mankenin tişört ve
+şortu chroma yeşile boyandı (`build_extract_base(174)`, tam varyant, ücretsiz),
+MAI bu girdiyle giydirdi. Eski kıyafetin olduğu her yer artık yeşil; hiçbir
+gri ya da pembe gölge onunla karışamıyor, iki filtre de yalnızca yeşili
+siliyor.
+
+| iç boşluk px¹ | FASHN | MAI (gerçek fotoğraf) | MAI (yeşil base) |
+|---|---|---|---|
+| #7 desenli şort | 1.397 | 3.258 | **1.200** |
+| #13 pembe gömlek | 3.805 | 9.850 | **4.734** |
+
+¹ Kıyafet silueti içindeki saydam piksel: alfa 21 px kapamayla doldurulup
+katman çıkarılıyor. Kol–gövde arasındaki doğal açıklığı da sayıyor, yani
+sıfır olmaz.
+
+Gözle: iki kusur da yok; şort eksiksiz ve bel bandı temiz, gömlekte çizgiler
+gitmiş. **Kaplama ise düştü** (#7 %6.7 → %6.5, #13 %22.2 → %21.0) — eski
+katmandaki fazlalıklar da gitti. Kaplama delikleri ölçmüyor; göz sayıyı bir
+kez daha veto etti, iç boşluk sayısı gözle uyuştu. Katmanlarda yeşilimsi
+piksel 0.
+
+**Kalıcı geçiş:** yeşil tam varyant `data/mannequins/base_174_extract.png`
+olarak kuruldu — yalnızca MAI mankeni (BASE hâlâ gerçek fotoğrafla
+çıkarıyor). Eski (yeşilsiz) MAI katmanları:
+`data/layer_surumleri/mai_yesilsiz_20261018/`. #7 ve #13 denemenin çıktısından
+ücretsiz işlendi; kalan 10 kıyafet yeşille yeniden üretildi (10 çağrı).
+"Gerçekçi Göster" etkilenmiyor (zincir gerçek fotoğraftan başlıyor); tek
+kıyafet görünümü yeşili `restore_extract_color` ile gerçek renge çeviriyor
+(§46).
+
+**12 kıyafetin sonucu** (FASHN / MAI gerçek fotoğraf / MAI yeşil base;
+`data/foundry_deneme/fashn_mai_yesil_12_kiyafet.png`):
+
+| # | iç boşluk px | renk ΔE (foto'ya) |
+|---|---|---|
+| 8 bordo polo | 4.402 / 3.857 / **1.186** | 4.4 / 3.2 / 9.2 |
+| 9 krem polo | 4.121 / 2.463 / **1.232** | 11.6 / 6.5 / 6.8 |
+| 10 baskılı tişört | 5.600 / 2.120 / **317** | 7.0 / 6.6 / 9.0 |
+| 11 mor tişört | 1.073 / 799 / **338** | 9.2 / 3.2 / 4.2 |
+| 12 kırık beyaz | 2.453 / 1.242 / **232** | 6.7 / 7.7 / 10.0 |
+| 13 pembe gömlek | 3.805 / 9.850 / 4.734 | 6.1 / 5.8 / 7.3 |
+| 14 lacivert tişört | 527 / 361 / 3.270² | 9.7 / 14.7 / 14.7 |
+| 23 oxford gömlek | 7.690 / 8.385 / 5.860 | 10.9 / 8.9 / 11.8 |
+| 6 siyah şort | 933 / 2.001 / 1.676 | 4.4 / 3.0 / 2.8 |
+| 7 desenli şort | 1.397 / 3.258 / **1.200** | 9.9 / 6.0 / 10.0 |
+| 15 bej şort | 3.049 / 1.908 / 2.341 | 17.6 / 11.6 / 8.9 |
+| 16 chino | 5.987 / 7.246 / 6.541 | 2.2 / 5.3 / 7.6 |
+
+² Delik değil: yeşil katmanın sağ omzunda duvardan birkaç beyaz kırıntı var,
+kapama onlarla tişört arasını "boşluk" sayıyor. Duvar rengindeler, uygulamada
+görünmüyorlar. Sayı yanılttı, göz düzeltti.
+
+**Kazanç:** sitede görülen delikler (gri lekeler, kolda çizgiler) gitti; iç
+boşluk 12 kıyafetin 9'unda düştü, en çok baskılı tişört (yazı delikleri) ve
+kırık beyaz tişörtte.
+
+**Bedel:** renk 12 kıyafetin 7'sinde fotoğraftan biraz daha uzak (ΔE +1 ile
++6): kırık beyaz tişört beje kaçtı, bordo polo daha doygun. İki olası sebep
+ayrılamıyor: model yeşil girdiye göre renk dengesini kaydırıyor olabilir, ya
+da bu sadece çağrılar arası rastgelelik (MAI'nin tohumu yok). Ayırmak için aynı
+kıyafeti iki girdiyle birkaç kez üretmek gerekir — yapılmadı.
+
+Tek tek geri dönmek ücretsiz: bir kıyafetin eski (yeşilsiz) MAI katmanı ve ham
+çıktısı `data/layer_surumleri/mai_yesilsiz_20261018/` içinde; dosyayı geri
+kopyalamak yetiyor (yol ve DB kaydı aynı).
+
+### 51.9 İç etiket ön yüze çıktı — talimata bir cümle (18 Ekim 2026)
+
+Yeşil base ile üretilen mor tişörtte (#11) beyaz marka etiketi tişörtün
+ÖNÜNE, yakanın altına yerleşmişti. Sebep fotoğrafta: kıyafet önden
+çekildiği için yaka açıklığından içerideki etiket görünüyor; model içle dışı
+ayırt edemiyor. Rastlantısal — aynı kıyafetin önceki MAI üretiminde ve FASHN'da
+etiket yoktu (tohum yok, her üretim farklı).
+
+Çözüm: `giydirme_talimati`'na tek cümle — "Any brand or size label visible
+inside the neckline of the garment photo is sewn on the inside: do not show it
+on the outside." Talimat MAI, gpt-image ve Gemini'de ortak; FASHN'ın kendi
+talimatı var, etkilenmedi. #11 yeniden üretildi (1 çağrı): etiket yok, göğüs
+ve kol baskısı yerinde. Tek deneme — kesin kanıt değil, ama her yeni kıyafete
+de uygulanıyor. Etiketli sürüm: `data/layer_surumleri/mai_yesil_etiketli_20261018/`.
+Fotoğraf tarafında en sağlam önlem: çekerken etiketi içeri katlamak.

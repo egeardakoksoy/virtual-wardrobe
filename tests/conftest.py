@@ -44,7 +44,8 @@ def isolated_env(tmp_path, monkeypatch):
                 "FOUNDRY_CLAUDE_DEPLOYMENT", "FOUNDRY_CLAUDE_TRANSLATE_DEPLOYMENT",
                 "FOUNDRY_IMAGE_DEPLOYMENT", "FOUNDRY_IMAGE_SIZE",
                 "FOUNDRY_IMAGE_QUALITY", "FOUNDRY_OPENAI_BASE_URL",
-                "FOUNDRY_OPENAI_API_VERSION",
+                "FOUNDRY_OPENAI_API_VERSION", "FOUNDRY_IMAGE_API",
+                "FOUNDRY_MAI_AUTO_ASPECT",
                 "ANTHROPIC_FOUNDRY_API_KEY", "ANTHROPIC_FOUNDRY_RESOURCE",
                 "ANTHROPIC_FOUNDRY_BASE_URL"):
         monkeypatch.delenv(key, raising=False)

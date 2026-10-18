@@ -8,7 +8,7 @@ tek tıkla **gerçekçi render**'a çeviriyor ve doğal dille düzenliyor
 ![Bir kez öde, sonsuz kez giy](nasil-calisiyor-akis.svg)
 
 **Durum:** Faz 0 ✅ · Faz 1 ✅ · Faz 2 ✅ · Faz 4 ✅ · Faz 6 ✅ · Faz 3 ve 5 açık
-· **394 test geçiyor** (hiçbiri gerçek API çağırmıyor)
+· **406 test geçiyor** (hiçbiri gerçek API çağırmıyor)
 
 Bu README mimariyi ve gerekçelerini anlatıyor. Her kararın arkasındaki **ölçüm
 kayıtları** — çürüyen hipotezler dâhil — [`HANDOFF.md`](HANDOFF.md) içinde
@@ -49,30 +49,38 @@ FASHN / fal / Anthropic anahtarları yerine tek bir **Microsoft Foundry**
 kaynağı kullanılabilir. Tek anahtar hem Claude'a (öznitelik çıkarımı) hem bir
 görüntü modeline (sanal deneme, manken üretimi, düzenleme sohbeti) erişiyor.
 
-1. Foundry'de bir kaynak oluştur ve iki dağıtım aç: bir **Claude** modeli
-   (örn. `claude-opus-5-5`) ve bir **gpt-image** modeli (örn. `gpt-image-2`).
+1. Foundry'de bir kaynak oluştur ve dağıtımları aç: bir **görüntü modeli** —
+   Microsoft'un kendi **MAI** modelleri (örn. `MAI-Image-2.6-Flash`) ya da
+   **gpt-image** (örn. `gpt-image-2`) — ve isteğe bağlı bir **Claude** modeli
+   (örn. `claude-opus-5-5`).
 2. `.env`'e ekle:
 
    ```
    FOUNDRY_RESOURCE=kaynak-adin
    FOUNDRY_API_KEY=...
+   FOUNDRY_IMAGE_DEPLOYMENT=MAI-Image-2.6-Flash
    FOUNDRY_CLAUDE_DEPLOYMENT=claude-opus-5-5
-   FOUNDRY_IMAGE_DEPLOYMENT=gpt-image-2
    ```
 
 3. `python cli.py doctor` ile "Microsoft Foundry" bölümünü kontrol et.
+
+**Kod değişikliği gerekmiyor:** MAI ayrı bir API kullanıyor ama dağıtım adı
+`MAI-Image` ile başladığı sürece kendiliğinden seçiliyor (başka ad verdiysen
+`FOUNDRY_IMAGE_API=mai`). MAI yolu `openai` paketine de ihtiyaç duymuyor.
 
 Parçalar bağımsız: yalnızca Claude dağıtımını tanımlarsan öznitelik çıkarımı
 Foundry'den gelir, sanal deneme diğer sağlayıcılarda kalır. FASHN anahtarı da
 tanımlıysa sanal denemede FASHN önceliklidir.
 
-> ⚠️ **Foundry'de hazır bir sanal deneme modeli yok.** gpt-image genel amaçlı
-> bir düzenleyici ve katman mimarisinin istediği "kıyafet dışı sabit kalsın"
-> şartını kendiliğinden sağlamıyor. Bunu kod sağlıyor: model çıktısı,
-> kıyafetin olabileceği bölgenin (kategori bandı ∩ kişi silüeti) dışında
-> base fotoğrafla değiştiriliyor. Mantık sahte istemciyle test edildi; **gerçek
-> çağrılarla katman kalitesi henüz ölçülmedi** (bkz. `HANDOFF.md` §48). Kişi
-> silüeti için `rembg` kurulu olmalı — yoksa yalnızca dikey bant korunuyor.
+> ⚠️ **Foundry'de hazır bir sanal deneme modeli yok.** MAI ve gpt-image genel
+> amaçlı modeller; katman mimarisinin istediği "kıyafet dışı sabit kalsın"
+> şartını kendiliğinden sağlamıyorlar. Bunun bir kısmını kod sağlıyor: model
+> çıktısı, kıyafetin olabileceği bölgenin (kategori bandı ∩ kişi silüeti)
+> dışında base fotoğrafla değiştiriliyor. Bölgenin **içinde** ise model gövdeyi
+> kaydırır ya da rengi değiştirirse katman kirlenir. Mantık sahte istemciyle
+> test edildi; **gerçek çağrılarla katman kalitesi henüz ölçülmedi** (bkz.
+> `HANDOFF.md` §48, §51). Kişi silüeti için `rembg` kurulu olmalı — yoksa
+> yalnızca dikey bant korunuyor.
 
 ### Komutlar
 
@@ -94,7 +102,7 @@ tanımlıysa sanal denemede FASHN önceliklidir.
 | `python cli.py tryon-ab <id> --seed 42` | VTON ayar karşılaştırması (**ücretli**) |
 | `python cli.py layer-ab <id>` | Katman mimarisi model karşılaştırması (**ücretli**) |
 | `python cli.py web` | Giydirme arayüzünü başlatır |
-| `pytest` | 394 test |
+| `pytest` | 406 test |
 
 > `--reextract` önemli: çıkarım parametrelerini ayarlarken API'ye tekrar ödeme
 > yapmamak için ham VTON çıktıları diskte saklanıyor. Bu projedeki iyileştirmelerin
@@ -253,7 +261,7 @@ Arkasında dört adaptör var:
 | `fashn` | FASHN doğrudan API, `tryon-max` — **varsayılan** |
 | `fal` | fal.ai üzerinden FASHN v1.6 |
 | `gemini` | görsel düzenleme (Faz 6 sohbeti) |
-| `foundry` | Microsoft Foundry'deki gpt-image modeli — bölge kısıtlamasıyla (ölçülmedi) |
+| `foundry` | Microsoft Foundry'deki MAI ya da gpt-image modeli — bölge kısıtlamasıyla (ölçülmedi) |
 | `mock` | bedava, sahte katman — testler ve kuru çalıştırma |
 
 ```bash
@@ -352,7 +360,7 @@ wardrobe/
 web/
   app.py               FastAPI uç noktaları
   static/              index.html · app.js · style.css
-tests/                 394 test (21 dosya), API anahtarı gerektirmez
+tests/                 406 test (21 dosya), API anahtarı gerektirmez
 data/                  raw/ cutout/ layers/ mannequins/ renders/ + wardrobe.db
 ```
 
@@ -364,7 +372,7 @@ data/                  raw/ cutout/ layers/ mannequins/ renders/ + wardrobe.db
 pytest
 ```
 
-394 test, ~90 saniye, **hiçbiri gerçek API çağırmıyor.** `conftest.py` her testte
+406 test, ~90 saniye, **hiçbiri gerçek API çağırmıyor.** `conftest.py` her testte
 API anahtarlarını siliyor, varsayılan veritabanını ve veri dizinlerini
 `tmp_path`'e yönlendiriyor. Geliştiricinin `.env`'i yüklü olsa bile testler
 **fatura üretmiyor** ve gerçek dolabı kirletmiyor.

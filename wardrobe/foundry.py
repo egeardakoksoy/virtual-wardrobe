@@ -5,12 +5,17 @@ NEDEN AYRI MODÜL: Foundry'yi iki ayrı yer kullanıyor — öznitelik çıkarı
 aynı kaynağa (resource) ve aynı API anahtarına bağlanıyor; ayar okumayı iki
 yere dağıtmak, birinin güncellenip diğerinin unutulması demek.
 
-Tek kaynak, tek anahtar, iki uç nokta:
+Tek kaynak, tek anahtar; görüntü tarafında iki model ailesi:
 
-    Claude  : https://{resource}.services.ai.azure.com/anthropic/v1/*
-    Görüntü : https://{resource}.openai.azure.com/openai/v1/*
+    Claude          : https://{resource}.services.ai.azure.com/anthropic/v1/*
+    Görüntü (gpt)   : https://{resource}.openai.azure.com/openai/v1/*
+    Görüntü (MAI)   : https://{resource}.services.ai.azure.com/mai/v1/images/*
 
-Model adı iki tarafta da DAĞITIM adı (deployment name), model kimliği değil.
+MAI, Microsoft'un kendi görüntü modelleri (MAI-Image-2.5 / 2.6). Ayrı bir API:
+düzenleme multipart, 5 görsele kadar girdi, boyut alanı yok, yanıt base64 PNG.
+Hangisinin kullanılacağı dağıtım adından anlaşılıyor (`image_api`).
+
+Model adı her yerde DAĞITIM adı (deployment name), model kimliği değil.
 Foundry portalında dağıtım oluşturulurken verilen ad bu; varsayılanı model
 kimliğiyle aynı ama değiştirilebiliyor.
 
@@ -31,6 +36,13 @@ DEFAULT_IMAGE_SIZE = "1024x1536"
 # Katman kıyafet başına BİR KEZ üretiliyor; kalitede cimrilik yanlış takas
 # (FASHN için de aynı karar verilmişti, bkz. FalProvider).
 DEFAULT_IMAGE_QUALITY = "high"
+
+# MAI üretim (generations) sınırları — Microsoft'un belgesi, Ekim 2026: her
+# kenar en az 768 px; toplam piksel MAI-Image-2.5'te 1024x1024'ü, 2.6'da
+# 1536x1536'yı geçemez. Hangi sürümün dağıtıldığını bilmediğimiz için ortak
+# payda (2.5'in sınırı) kullanılıyor; çıktı zaten istenen boyuta ölçekleniyor.
+MAI_MIN_KENAR = 768
+MAI_MAX_PIKSEL = 1024 * 1024
 
 
 def resource() -> str | None:
@@ -105,6 +117,43 @@ def openai_api_version() -> str | None:
     return secrets.get("FOUNDRY_OPENAI_API_VERSION")
 
 
+def image_api() -> str:
+    """Görüntü dağıtımının konuştuğu API: "mai" ya da "openai".
+
+    Varsayılan dağıtım adından: Foundry'de dağıtım adının varsayılanı model
+    kimliği ("MAI-Image-2.6-Flash"), yani çoğu kurulumda ayar gerekmiyor.
+    Dağıtıma başka bir ad verildiyse FOUNDRY_IMAGE_API ile açıkça söylenir.
+    """
+    acik = (secrets.get("FOUNDRY_IMAGE_API") or "").strip().lower()
+    if acik in ("mai", "openai"):
+        return acik
+    return ("mai" if (image_deployment() or "").lower().startswith("mai-image")
+            else "openai")
+
+
+def mai_base_url() -> str | None:
+    r = resource()
+    return f"https://{r}.services.ai.azure.com" if r else None
+
+
+def mai_auto_aspect() -> bool:
+    """MAI düzenlemesinde `auto_aspect_ratio` gönderilsin mi?
+
+    Düzenleme API'sinde boyut alanı yok. Bu bayrak kapalıyken model "varsayılan
+    en-boy oranını" kullanıyor; açıkken oranı girdilere bakarak kendisi seçiyor
+    — 2:3 boy fotoğrafını koruması için açık olanı daha olası. Yalnızca 2.6
+    ailesi kabul ediyor (2.5'e gönderilirse 400), o yüzden varsayılan dağıtım
+    adında "2.6" geçiyorsa açık. ÖLÇÜLMEDİ — FOUNDRY_MAI_AUTO_ASPECT ile
+    açılıp kapatılabiliyor.
+    """
+    deger = (secrets.get("FOUNDRY_MAI_AUTO_ASPECT") or "").strip().lower()
+    if deger in ("true", "1", "yes", "evet"):
+        return True
+    if deger in ("false", "0", "no", "hayir", "hayır"):
+        return False
+    return "2.6" in (image_deployment() or "")
+
+
 def summary() -> dict:
     """`doctor` için durum — SIR İÇERMEZ (anahtarın kendisi yok)."""
     return {
@@ -114,7 +163,10 @@ def summary() -> dict:
         "claude_ready": claude_ready(),
         "image_deployment": image_deployment(),
         "image_ready": image_ready(),
+        "image_api": image_api(),
         "image_size": image_size(),
         "image_quality": image_quality(),
         "openai_base_url": openai_base_url(),
+        "mai_base_url": mai_base_url(),
+        "mai_auto_aspect": mai_auto_aspect(),
     }

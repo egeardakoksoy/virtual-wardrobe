@@ -779,12 +779,18 @@ def giydirme_talimati(category: str) -> str:
     Düzenleyicinin bilinen kusuru kıyafet dışını da yeniden çizmesi; onu API
     tarafında kısıtlayan bir alan yok, elimizdeki kaldıraç prompt — ve
     Foundry'de ayrıca `bolgeye_kisitla`.
+
+    ETİKET CÜMLESİ (§51.9): kıyafet önden çekildiğinde yaka açıklığından
+    içerideki marka etiketi görünüyor. MAI bir üretimde onu tişörtün ÖNÜNE,
+    yakanın altına yerleştirdi — model içle dışı ayırt edemiyor.
     """
     hedef = EDIT_INSTRUCTIONS.get(category, EDIT_INSTRUCTIONS["ust"])
     return (
         "Using the first image as the person and the second image as the "
         f"garment, replace {hedef} with the garment from the second image. "
         "Keep the garment's exact colour, print, texture and cut. "
+        "Any brand or size label visible inside the neckline of the garment "
+        "photo is sewn on the inside: do not show it on the outside. "
         "Do not change the person's face, hair, skin, body shape, pose, "
         "hands, the background or the lighting. "
         "Keep the framing and image dimensions identical. "
@@ -1000,19 +1006,39 @@ def _png_parcasi(path: str | Path, ad: str) -> tuple[str, bytes, str]:
     return ad, buf.getvalue(), "image/png"
 
 
+def _alan(nesne, ad: str):
+    """SDK nesnesinden ya da düz JSON sözlüğünden alan okur (MAI yanıtı dict)."""
+    return nesne.get(ad) if isinstance(nesne, dict) else getattr(nesne, ad, None)
+
+
 def _cevaptan_gorsel(cevap) -> Image.Image:
-    """Görüntü API yanıtından PIL görseli. gpt-image ailesi yalnızca base64 dönüyor."""
-    veriler = getattr(cevap, "data", None) or []
+    """Görüntü API yanıtından PIL görseli. gpt-image ve MAI yalnızca base64 dönüyor."""
+    veriler = _alan(cevap, "data") or []
     if not veriler:
         raise RuntimeError("Foundry yanıtında görsel yok")
     veri = veriler[0]
-    b64 = getattr(veri, "b64_json", None)
+    b64 = _alan(veri, "b64_json")
     if b64:
         return Image.open(io.BytesIO(base64.b64decode(b64))).convert("RGB")
-    url = getattr(veri, "url", None)
+    url = _alan(veri, "url")
     if url:
         return _download_image(url)
     raise RuntimeError("Foundry yanıtında ne base64 ne URL var")
+
+
+def _mai_boyut(hedef: tuple[int, int]) -> tuple[int, int]:
+    """Hedefin en-boy oranında, MAI'nin piksel sınırlarına sığan en büyük boyut.
+
+    864x1296 (1.12 MP) MAI-Image-2.5'in 1 MP tavanını aşıyor; oran korunarak
+    küçültülüyor, çıktı sonra hedefe geri ölçekleniyor — bozulma yok.
+    """
+    w, h = hedef
+    olcek = min(1.0, (foundry.MAI_MAX_PIKSEL / (w * h)) ** 0.5)
+    w, h = int(w * olcek), int(h * olcek)
+    if min(w, h) < foundry.MAI_MIN_KENAR:
+        olcek = foundry.MAI_MIN_KENAR / min(w, h)
+        w, h = round(w * olcek), round(h * olcek)
+    return w, h
 
 
 class FoundryImageProvider:
@@ -1028,6 +1054,12 @@ class FoundryImageProvider:
     çiziyordu. Buradaki fark `bolgeye_kisitla`: kıyafet dışı model çıktısından
     değil base'den geliyor — o yüzden `supports_layers = True`.
 
+    İKİ MODEL AİLESİ, TEK SAĞLAYICI: dağıtım bir MAI modeliyse (Microsoft'un
+    kendi görüntü modelleri, MAI-Image-2.5/2.6) istekler MAI'nin ayrı API'sine
+    gidiyor (`_mai_istegi`), değilse OpenAI uyumlu görüntü API'sine. Bölge
+    kısıtlaması ikisinde de aynı — sorun modelin türünde değil, genel amaçlı
+    olmasında.
+
     ⚠ ÖLÇÜLMEDİ: bu sağlayıcıyla hiçbir gerçek çağrı yapılmadı. Kod Microsoft'un
     belgelediği arayüze göre yazıldı ve sahte istemciyle test edildi; kıyafet
     sadakati, poz kayması ve katman kalitesi ilk gerçek çalıştırmada ölçülmeli.
@@ -1039,15 +1071,18 @@ class FoundryImageProvider:
     supports_layers = True
 
     def __init__(self, seed: int | None = None):
-        # gpt-image ailesinin tohum parametresi yok. Arayüz uyumu için kabul
+        # gpt-image ve MAI'nin tohum parametresi yok. Arayüz uyumu için kabul
         # ediliyor ama gönderilmiyor — sonuçlar bu yüzden tekrarlanabilir değil.
         self.seed = seed
 
     def available(self) -> bool:
         if not foundry.image_ready():
             return False
+        # MAI düz HTTP: httpx zaten anthropic'in bağımlılığı. openai paketi
+        # yalnızca gpt-image yolunda gerekiyor.
+        paket = "httpx" if foundry.image_api() == "mai" else "openai"
         try:
-            import openai  # noqa: F401
+            __import__(paket)
             return True
         except ImportError:
             return False
@@ -1087,14 +1122,49 @@ class FoundryImageProvider:
             **ek,
         }
 
+    def _mai_istegi(self, yol: str, **istek) -> dict:
+        """MAI görüntü API'sine düz HTTP isteği (`/mai/v1/images/...`).
+
+        OpenAI SDK'sı burada kullanılamıyor: MAI'nin yolu, alan adları ve
+        parametreleri farklı (boyut/kalite alanı yok; görseller tekrarlanan
+        `image` alanıyla gidiyor). Hata mesajı durum kodunu ve yanıtın başını
+        taşıyor — anahtarı değil.
+        """
+        import httpx
+
+        yanit = httpx.post(
+            f"{foundry.mai_base_url()}{yol}",
+            headers={"api-key": foundry.api_key() or ""},
+            timeout=CALL_TIMEOUT,
+            **istek,
+        )
+        if yanit.status_code >= 400:
+            raise RuntimeError(
+                f"MAI {yol} → HTTP {yanit.status_code}: {yanit.text[:500]}")
+        return yanit.json()
+
+    def _duzenle(self, gorseller: list[tuple[str, bytes, str]], prompt: str):
+        """Düzenleme isteği — dağıtımın API ailesine göre."""
+        if foundry.image_api() == "mai":
+            alanlar = {"model": foundry.image_deployment(), "prompt": prompt}
+            if foundry.mai_auto_aspect():
+                alanlar["auto_aspect_ratio"] = "true"
+            return self._mai_istegi(
+                "/mai/v1/images/edits", data=alanlar,
+                files=[("image", g) for g in gorseller])
+        return self._client().images.edit(**self._istek(
+            image=gorseller if len(gorseller) > 1 else gorseller[0],
+            prompt=prompt,
+        ))
+
     def try_on(
         self, model_image: Path, garment_image: Path, category: str
     ) -> Image.Image:
-        cevap = self._client().images.edit(**self._istek(
-            image=[_png_parcasi(model_image, "kisi.png"),
-                   _png_parcasi(garment_image, "kiyafet.png")],
-            prompt=giydirme_talimati(category),
-        ))
+        cevap = self._duzenle(
+            [_png_parcasi(model_image, "kisi.png"),
+             _png_parcasi(garment_image, "kiyafet.png")],
+            giydirme_talimati(category),
+        )
         return bolgeye_kisitla(_cevaptan_gorsel(cevap), Path(model_image), category)
 
     def edit(
@@ -1103,16 +1173,21 @@ class FoundryImageProvider:
         """Düzenleme sohbeti (Faz 6): var olan sahneyi talimatla değiştirir."""
         if not prompt.strip():
             raise ValueError("düzenleme talimatı boş olamaz")
-        cevap = self._client().images.edit(**self._istek(
-            image=_png_parcasi(image, "sahne.png"),
-            prompt=prompt.strip() + DUZENLEME_KORUMA_EKI,
-        ))
+        cevap = self._duzenle([_png_parcasi(image, "sahne.png")],
+                              prompt.strip() + DUZENLEME_KORUMA_EKI)
         out = _cevaptan_gorsel(cevap)
         hedef = load_any(image).size
         return out if out.size == hedef else out.resize(hedef, Image.LANCZOS)
 
     def text_to_image(self, prompt: str, size: tuple[int, int]) -> Image.Image:
-        cevap = self._client().images.generate(**self._istek(prompt=prompt))
+        if foundry.image_api() == "mai":
+            w, h = _mai_boyut(tuple(size))
+            cevap = self._mai_istegi(
+                "/mai/v1/images/generations",
+                json={"model": foundry.image_deployment(), "prompt": prompt,
+                      "width": w, "height": h})
+        else:
+            cevap = self._client().images.generate(**self._istek(prompt=prompt))
         out = _cevaptan_gorsel(cevap)
         return out if out.size == tuple(size) else out.resize(size, Image.LANCZOS)
 
@@ -1214,11 +1289,22 @@ def supports_category(provider, category: str) -> bool:
     return category not in UNSUPPORTED_CATEGORIES
 
 
+def _manken_saglayicisi() -> str | None:
+    """Aktif mankene bağlı sağlayıcı (bkz. mannequin.provider_for). Hata fırlatmaz."""
+    try:
+        from wardrobe import mannequin     # döngüsel import olmasın diye içeride
+
+        ad = mannequin.provider_for()
+    except Exception:
+        return None
+    return ad if ad in _PROVIDERS else None
+
+
 def get_provider(name: str | None = None) -> VtonProvider:
     """Sağlayıcıyı seçer.
 
-    Sıra: açık isim → VTON_PROVIDER → **fashn** (varsa) → fal (varsa)
-    → foundry (varsa) → mock.
+    Sıra: açık isim → VTON_PROVIDER → aktif mankenin sağlayıcısı (§51.7) →
+    **fashn** (varsa) → fal (varsa) → foundry (varsa) → mock.
 
     FOUNDRY SONDAN BİR ÖNCE: o genel amaçlı bir düzenleyici ve katman
     kalitesi ölçülmedi; FASHN ise bu iş için eğitilmiş ve ölçülmüş. Yalnızca
@@ -1234,7 +1320,7 @@ def get_provider(name: str | None = None) -> VtonProvider:
     tryon-max ile üretilmişken tek bir kıyafetin v1.6 ile üretilmesi, katmanlar
     arasında görünür bir tutarsızlık demek.
     """
-    name = name or os.environ.get("VTON_PROVIDER")
+    name = name or os.environ.get("VTON_PROVIDER") or _manken_saglayicisi()
     if name:
         if name not in _PROVIDERS:
             raise ValueError(

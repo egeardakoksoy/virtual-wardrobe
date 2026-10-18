@@ -179,7 +179,11 @@ def _doctor_foundry() -> None:
           f"{s['claude_deployment'] or 'yok → öznitelik başka kaynaktan'}")
     print(f"  {'✓' if s['image_ready'] else '○'} görüntü dağıtımı  "
           f"{s['image_deployment'] or 'yok → sanal deneme başka sağlayıcıda'}")
-    if s["image_ready"]:
+    if s["image_ready"] and s["image_api"] == "mai":
+        print(f"      MAI görüntü API'si · uç nokta {s['mai_base_url']}/mai/v1/images")
+        print(f"      auto_aspect_ratio {'açık' if s['mai_auto_aspect'] else 'kapalı'}"
+              " (FOUNDRY_MAI_AUTO_ASPECT)")
+    elif s["image_ready"]:
         try:
             import openai  # noqa: F401
         except ImportError:
