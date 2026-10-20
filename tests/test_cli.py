@@ -138,3 +138,18 @@ def test_doctor_rembg_yoksa_hata_verir(monkeypatch, capsys):
     assert main(["doctor"]) == 1
     cikti = capsys.readouterr().out
     assert "✗ rembg" in cikti and 'pip install "rembg[cpu]"' in cikti
+
+
+def test_doctor_scipy_yoksa_hata_verir(monkeypatch, capsys):
+    """scipy yoksa katmanlar delikli kalıyor ve serpinti silinmiyor; eskiden
+    yalnızca rembg ile dolaylı geliyordu (§57)."""
+    monkeypatch.setattr("wardrobe.layers.has_scipy", lambda: False)
+    assert main(["doctor"]) == 1
+    assert "✗ scipy" in capsys.readouterr().out
+
+
+def test_requirements_scipy_iceriyor():
+    from config import PROJECT_ROOT
+
+    satirlar = (PROJECT_ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()
+    assert any(s.strip().startswith("scipy") for s in satirlar)

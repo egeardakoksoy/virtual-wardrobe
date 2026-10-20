@@ -968,20 +968,17 @@ def decontaminate_edges(
 def _band_mask(shape: tuple[int, int], category: str) -> np.ndarray:
     """Kategorinin anatomik bandı — scipy yoksa kullanılan yedek.
 
-    Bileşen etiketleme kadar isabetli değil (uzun bir montu kesebilir) ama
-    bacaklardaki serpintiyi engellemeye yeter. Bantlar cömert tutuldu: burada
-    amaç segmentasyon değil, güvenlik ağı.
+    Bileşen etiketleme kadar isabetli değil ama bacaklardaki serpintiyi
+    engellemeye yeter: amaç segmentasyon değil, güvenlik ağı.
 
-    ⚠ `vton.SLOT_BANDS` kullanıyor — o tablo MOCK sağlayıcının kıyafeti
-    yapıştıracağı KUTU, gerçek kıyafetin kaplayabileceği alan değil. Bu yüzden
-    çıkarım kapısı (`region_gate`) ayrı ve ÖLÇÜLMÜŞ bir tablo kullanıyor.
+    ÖLÇÜLMÜŞ `REGION_BANDS` kullanıyor (§57). Eskiden `vton.SLOT_BANDS` + %8
+    kullanıyordu — o tablo MOCK sağlayıcının kıyafeti yapıştırdığı KUTU, alt
+    giyim için (0.42, 0.96). Dış denemede scipy yoktu ve pantolon katmanı tam
+    %96'da kesildi (paça yok, manken kapri giymiş gibi). Aynı ham çıktıyla
+    burada ölçüldü: son opak satır %99.7 → %95.9.
     """
-    from wardrobe.vton import SLOT_BANDS
-
     h, w = shape
-    top, bottom = SLOT_BANDS.get(category, (0.0, 1.0))
-    # Bandı %8 genişlet — uzun kesim kıyafetler kırpılmasın.
-    top, bottom = max(0.0, top - 0.08), min(1.0, bottom + 0.08)
+    top, bottom = region_band(category)
 
     mask = np.zeros(shape, dtype=bool)
     mask[int(top * h):int(bottom * h)] = True

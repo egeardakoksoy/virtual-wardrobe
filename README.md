@@ -8,7 +8,7 @@ tek tıkla **gerçekçi render**'a çeviriyor ve doğal dille düzenliyor
 ![Bir kez öde, sonsuz kez giy](nasil-calisiyor-akis.svg)
 
 **Durum:** Faz 0 ✅ · Faz 1 ✅ · Faz 2 ✅ · Faz 4 ✅ · Faz 6 ✅ · Faz 3 ve 5 açık
-· **441 test geçiyor** (hiçbiri gerçek API çağırmıyor)
+· **444 test geçiyor** (hiçbiri gerçek API çağırmıyor)
 
 Bu README mimariyi ve gerekçelerini anlatıyor. Her kararın arkasındaki **ölçüm
 kayıtları** — çürüyen hipotezler dâhil — [`HANDOFF.md`](HANDOFF.md) içinde
@@ -120,7 +120,7 @@ Cost Management'ta (bkz. `HANDOFF.md` §54).
 | `python cli.py tryon-ab <id> --seed 42` | VTON ayar karşılaştırması (**ücretli**) |
 | `python cli.py layer-ab <id>` | Katman mimarisi model karşılaştırması (**ücretli**) |
 | `python cli.py web` | Giydirme arayüzünü başlatır |
-| `pytest` | 441 test |
+| `pytest` | 444 test |
 
 > `--reextract` önemli: çıkarım parametrelerini ayarlarken API'ye tekrar ödeme
 > yapmamak için ham VTON çıktıları diskte saklanıyor. Bu projedeki iyileştirmelerin
@@ -378,7 +378,7 @@ wardrobe/
 web/
   app.py               FastAPI uç noktaları
   static/              index.html · app.js · style.css
-tests/                 441 test (21 dosya), API anahtarı gerektirmez
+tests/                 444 test (21 dosya), API anahtarı gerektirmez
 data/                  raw/ cutout/ layers/ mannequins/ renders/ + wardrobe.db
 ```
 
@@ -390,7 +390,7 @@ data/                  raw/ cutout/ layers/ mannequins/ renders/ + wardrobe.db
 pytest
 ```
 
-441 test, ~90 saniye, **hiçbiri gerçek API çağırmıyor.** `conftest.py` her testte
+444 test, ~90 saniye, **hiçbiri gerçek API çağırmıyor.** `conftest.py` her testte
 API anahtarlarını siliyor, varsayılan veritabanını ve veri dizinlerini
 `tmp_path`'e yönlendiriyor. Geliştiricinin `.env`'i yüklü olsa bile testler
 **fatura üretmiyor** ve gerçek dolabı kirletmiyor.

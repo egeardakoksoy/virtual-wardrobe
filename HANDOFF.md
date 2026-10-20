@@ -8,7 +8,7 @@
 **GitHub:** https://github.com/egeardakoksoy/virtual-wardrobe (public)
 **Durum:** Faz 0 ✅ · Faz 1 ✅ · Faz 2 ✅ · Faz 4 ✅ · Faz 6 ✅ · Faz 3 ertelendi ·
   **Microsoft AI Innovators staj teslimi TAMAMLANDI, sertifika alındı (17.8.2026)**
-**Testler:** 441 geçiyor (`pytest`, ~95 sn, API çağırmaz) — 50'si Foundry
+**Testler:** 444 geçiyor (`pytest`, ~95 sn, API çağırmaz) — 50'si Foundry
 **Dolap:** 12 kıyafet (7 üst + #23 oxford gömlek, 4 alt) · aksesuar YOK (§47.7)
 **Mankenler:** `base` (#1, 12 FASHN katmanı) · `manken 2` (#139, 3 katman) ·
   `MAI` (#174, 12 MAI katmanı, **aktif**)
@@ -4758,3 +4758,33 @@ Kıyafet ekleme uyarısındaki komut da `pip install "rembg[cpu]"` oldu (sade
 `pip install rembg` motor kurmuyor). Tarayıcıda üç durum denendi (gerçek
 dolap: gizli; rembg yok; 3 yedek kırpık), konsol temiz. 2 yeni test
 (toplam 441).
+
+### 57.1 Teşhis düzeltmesi: asıl mekanizma scipy (20 Ekim 2026)
+
+"Sebep rembg" yarı doğruydu. rembg'nin orada çalışmadığı kesin, ama katmanı
+bozan mekanizma büyük ihtimalle **scipy yokluğu**: scipy requirements'ta yoktu,
+yalnızca rembg'nin bağımlılığı olarak geliyordu (`pip show rembg` → Requires:
+… scipy …). rembg kurulmayınca scipy de yok ve `extract_layer` üç şeyi
+kaybediyor:
+
+- `largest_component` yok → serpinti silinmiyor (o katmanda sağdaki lekeler),
+- `fill_holes` yok → iç delikler kalıyor (dizlerdeki delikler),
+- yerine `_band_mask` → **mock'un kutusu** `SLOT_BANDS` + %8, alt giyim için
+  (0.42, 0.96) → pantolon tuvalin %96'sında kesiliyor.
+
+Ölçüm (aynı ham çıktı, `has_scipy` kapalı): son opak satır **%99.7 → %95.9**.
+O taraftaki ekran görüntüsünden ölçülen paça sonu da **%95.9**. Görsel iz de
+aynı: düz kesik paça + dizlerin altında doldurulmamış küçük delikler.
+
+**Düzeltmeler:**
+
+- `scipy>=1.10` requirements.txt'te (artık rembg'ye bağlı değil).
+- `_band_mask` ölçülmüş `REGION_BANDS`'i kullanıyor (alt: 0.46–1.00) —
+  scipy yokken de paça kesilmiyor. Aynı ham çıktıyla: son satır %99.7; kalan
+  kayıp 6.675 px (yalnızca doldurulmayan delikler — scipy bunun için şart).
+- `doctor`: scipy yoksa ✗ ve çıkış 1.
+- Test: yeni "paça kesilmez" testi eski kodda düşüyor (alfa 0), düzeltmeyle
+  geçiyor. Toplam 444.
+
+Kesinlik: o makinenin `doctor` çıktısı görülmeden %100 değil; ama kesik
+yüksekliğinin %0.1 hassasiyetle tutması çok güçlü bir kanıt.

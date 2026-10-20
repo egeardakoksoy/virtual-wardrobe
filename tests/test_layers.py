@@ -128,6 +128,20 @@ def test_scipy_yoksa_bant_yedegi_devreye_girer(monkeypatch):
     assert alpha[366, 77] < 128, "bant yedeği bacak bölgesini kesmedi"
 
 
+def test_scipy_yoksa_pantolon_pacadan_kesilmez(monkeypatch):
+    """Yedek bant eskiden mock'un kutusunu kullanıyordu (alt: %42–%96) ve
+    pantolonu %96'da kesiyordu — dış denemede manken kapri giymiş gibiydi
+    (§57). Ölçülmüş bant (alt: %46–%100) paçayı korumalı."""
+    monkeypatch.setattr("wardrobe.layers.has_scipy", lambda: False)
+
+    base = _base(size=(200, 400))
+    dressed = _dressed(base, (60, 200, 140, 400), color=(120, 100, 80))   # pantolon
+
+    alpha = np.asarray(layers.extract_layer(base, dressed, category="alt").split()[3])
+    assert alpha[300, 100] > 128, "pantolonun kendisi silinmiş"
+    assert alpha[392, 100] > 128, "paça kesildi (yedek bant %96'da bitiyor)"
+
+
 def test_kategori_verilmezse_ham_maske_korunur():
     """Geriye dönük uyum: kategori bilinmiyorsa agresif kesme yapma."""
     base = _base(size=(200, 400))

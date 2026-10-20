@@ -1,6 +1,10 @@
 # --- Görüntü işleme ---
 pillow>=10.0
 numpy>=1.24
+# Katman çıkarımının bileşen etiketleme ve delik doldurması. Eskiden yalnızca
+# rembg ile dolaylı geliyordu: rembg kurulmayınca scipy de yoktu ve katmanlar
+# delikli, pantolon paçası kesik çıktı (HANDOFF §57).
+scipy>=1.10
 
 # --- VLM (öznitelik çıkarımı) ---
 # 0.111: Microsoft Foundry istemcisi (AnthropicFoundry) bu sürümde doğrulandı.

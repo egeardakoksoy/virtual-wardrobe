@@ -263,6 +263,15 @@ def cmd_doctor(args) -> int:
     _doctor_foundry()
 
     print("\nBağımlılıklar:")
+    from wardrobe.layers import has_scipy
+
+    if has_scipy():
+        print("  ✓ scipy   kurulu (katman temizliği)")
+    else:
+        # §57: scipy yokken katmanlar delikli kaldı, serpinti silinmedi.
+        print("  ✗ scipy   yok → katmanlar delikli kalır, serpinti silinmez")
+        print("            Düzeltmek için:  pip install -r requirements.txt")
+        ok = False
     if _multipart_var():
         print("  ✓ python-multipart  kurulu (arayüzden yükleme)")
     else:
