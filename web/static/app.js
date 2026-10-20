@@ -58,6 +58,29 @@ const dolar = (x) => {
   return Number.isFinite(n) ? `~$${n.toFixed(2)}` : "~$?";
 };
 
+/* rembg uyarısı (§57) — eskiden bu durum sessizdi.
+ *
+ * Dış denemede rembg çalışmıyordu: kırpıklar arka planıyla kaldı, modele öyle
+ * gitti ve pantolon katmanı delikli çıktı. Kullanıcı bunu ancak sonuçtan
+ * anlayabiliyordu. İki ayrı durum: paket hiç yok, ya da kırpık daha önce
+ * yedek yöntemle yapılmış (rembg sonradan kurulsa da o kırpık kaba kalır). */
+function rembgUyarisi(veri) {
+  const el = $("#rembg-uyari");
+  const kaba = (veri.garments || []).filter((g) => g.cutout_method === "flood").length;
+  let metin = "";
+  if (veri.rembg === false) {
+    metin = "⚠ rembg kurulu değil: kıyafetlerin arka planı temizlenemiyor ve "
+      + "katmanlar bozulabilir. Kur: pip install \"rembg[cpu]\" — sonra "
+      + "sunucuyu yeniden başlat.";
+  } else if (kaba) {
+    metin = `⚠ ${kaba} kıyafetin arka planı yedek yöntemle temizlenmiş `
+      + "(rembg yokken eklenmiş). Daha iyi katman için o kıyafetleri silip "
+      + "yeniden ekle.";
+  }
+  el.textContent = metin;
+  el.classList.toggle("gizli", !metin);
+}
+
 async function baslat() {
   await dolabiYenile();
   kayitlariYukle();
@@ -593,6 +616,7 @@ async function dolabiYenile() {
   // Yükleme notu: okuma + katman, aktif mankenin modeliyle.
   $("#yukle-ucret").textContent =
     MANKEN.upload_cost_usd != null ? ` · ${dolar(MANKEN.upload_cost_usd)}` : "";
+  rembgUyarisi(veri);
 
   // Zemin URL'si manken id'sini DE taşıyor. Sadece mtime damgası yetmezdi:
   // iki mankenin gösterim base'i aynı saniyede üretilmişse damgalar eşit

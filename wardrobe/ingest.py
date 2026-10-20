@@ -108,7 +108,7 @@ def add_garment(
     if method == "flood":
         warnings.append(
             "Arka plan yedek yöntemle (flood) temizlendi. Daha iyi sonuç için: "
-            "pip install rembg"
+            'pip install "rembg[cpu]"'
         )
 
     ratio = coverage(cutout_path)

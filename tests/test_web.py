@@ -526,3 +526,18 @@ def test_dolap_ozeti_foundry_mai_ucretini_gosterir(client, monkeypatch):
     assert (m["provider"], m["model"]) == ("foundry", "MAI-Image-2.6")
     assert m["layer_cost_usd"] == pytest.approx(vton.MAI_CALL_USD)
     assert m["upload_cost_usd"] == pytest.approx(vton.MAI_CALL_USD + 0.001)
+
+
+# --- rembg uyarısı (§57) ---
+
+def test_dolap_rembg_durumunu_ve_kirpma_yontemini_bildirir(client, db_path, monkeypatch):
+    """rembg yokken arayüz sessizdi; artık sunucu durumu ve her kıyafetin
+    kırpma yöntemini veriyor, istemci görünür uyarı gösteriyor."""
+    gid = insert_garment({"category": "ust", "raw_path": "a.jpg",
+                          "cutout_method": "flood"}, db_path=db_path)
+
+    monkeypatch.setattr("wardrobe.cutout.has_rembg", lambda: False)
+    veri = client.get("/api/wardrobe").json()
+
+    assert veri["rembg"] is False
+    assert {g["id"]: g["cutout_method"] for g in veri["garments"]}[gid] == "flood"

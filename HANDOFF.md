@@ -8,7 +8,7 @@
 **GitHub:** https://github.com/egeardakoksoy/virtual-wardrobe (public)
 **Durum:** Faz 0 ✅ · Faz 1 ✅ · Faz 2 ✅ · Faz 4 ✅ · Faz 6 ✅ · Faz 3 ertelendi ·
   **Microsoft AI Innovators staj teslimi TAMAMLANDI, sertifika alındı (17.8.2026)**
-**Testler:** 439 geçiyor (`pytest`, ~95 sn, API çağırmaz) — 50'si Foundry
+**Testler:** 441 geçiyor (`pytest`, ~95 sn, API çağırmaz) — 50'si Foundry
 **Dolap:** 12 kıyafet (7 üst + #23 oxford gömlek, 4 alt) · aksesuar YOK (§47.7)
 **Mankenler:** `base` (#1, 12 FASHN katmanı) · `manken 2` (#139, 3 katman) ·
   `MAI` (#174, 12 MAI katmanı, **aktif**)
@@ -18,7 +18,7 @@
   FASHN panelinden kontrol et.
 **Sunucu:** `Dolabi Ac.bat` çift tıkla (ya da `python cli.py web`) → http://127.0.0.1:8000
 
-> ### ⚠ YENİ SOHBETTE İLK İŞ: §49–§56'ya bak
+> ### ⚠ YENİ SOHBETTE İLK İŞ: §49–§57'ye bak
 > Staj teslimi bitti. Açık iş: bir Microsoft çalışanının Foundry talebi.
 > gpt-image-2 ve Claude'a kota çıkmadı (§50); Microsoft'un MAI modelleri için
 > destek eklendi ve **MAI-Image-2.6 ile gerçek ölçüm yapıldı** — gömlek,
@@ -4712,3 +4712,49 @@ kuruldu, çıkış 0; site açıldı → tek manken "base" (fotoğrafsız), ücr
 çağrı yok; **+ Yeni manken** → 201, aynı satır doldu, `base_extract.png`
 (yeşil taban) kuruldu, sahne 200, ücretli çağrı yok. Geliştiricinin sitesinde yeni
 `app.js` sorunsuz (mevcut mankenlerde not değişmedi). 4 yeni test (toplam 439).
+
+## 57. İlk dış deneme: pantolon katmanı kesik — sebep: rembg yok (20 Ekim 2026)
+
+Projeyi dışarıdan kuran kişi uçtan uca denedi (MAI-Image-2.6; görsel analiz
+için gpt-4.1-mini yerine kendi dağıtımı **GPT-6.1-sol** — o yol da sorunsuz
+çalıştı). Arayüz akışı (§56) çalıştı: "test" adlı tek manken, boş "base"
+kalmadı, ücret notu "~$0.06".
+
+**Gözlem:** iki kıyafetli bindirmede pantolon katmanı dizlerde delikli,
+paçanın son ~50 px'i yok (manken kapri giymiş gibi). Aynı kıyafetin ham çıktısı
+(`/api/dressed/3.png`) tam: MAI pantolonu doğru çizmiş, kayıp katmanda.
+
+**Teşhis:**
+
+- Yüklediği `beige_pant.jpeg`, buradaki #16 chino'nun ham fotoğrafıyla birebir
+  aynı (md5). Manken fotoğrafı ve model de aynı. Buradaki MAI katmanı
+  (`g16_m174.png`) paçaya kadar tam → fark ORTAMDA.
+- Kıyafet kartlarında arka plan temizlenmemiş (pantolonun arkasında çizgili
+  zemin, sağda çiçekli kumaş). Aynı fotoğraf burada `method="flood"` ile
+  kırpılınca birebir aynı kalıntılar çıktı → **orada rembg çalışmıyor**,
+  uygulama sessizce flood yedeğine düşmüş.
+- Elenen açıklamalar (ücretsiz, buradaki ham çıktıyla ölçüldü): aynı ham
+  çıktıdan flood kırpığıyla ya da rembg tamamen kapalıyken çıkarım → kayıp
+  362 px, görsel fark yok. Rembg kapalıyken yeşil taban da aynen kuruluyor
+  (boyanan alan %21.87, rembg'li ile aynı). Yani çıkarım adımı ve yeşil taban
+  bozulmayı açıklamıyor.
+- Kalan en güçlü açıklama: ham çıktı orada farklı üretildi — MAI'ye çizgili
+  zeminli, çiçekli kumaşlı kırpık gitti ve bölge kısıtlaması kişi maskesi
+  olmadan yalnızca bantla çalıştı. Kesin teşhis için o tarafın
+  `data/layers/g3_m1_raw.png` ve `data/mannequins/base_1_extract.png`
+  dosyaları gerekiyor.
+
+**Ders:** rembg yokken uygulama sessiz kalıyor. `doctor` bunu yalnızca "○
+opsiyonel" diye gösteriyor ve yine "Kurulum sağlam görünüyor" diyor; arayüzde
+hiç uyarı yok. Önerilen: rembg yoksa `doctor` ✗ (çıkış 1) ve arayüzde görünür
+uyarı.
+
+**Yapıldı (20 Ekim):** rembg yoksa `doctor` artık ✗ ve çıkış kodu 1
+("kırpma kaba, katmanlar bozulabilir"). `/api/wardrobe` `rembg` durumunu ve
+her kıyafetin `cutout_method`'unu veriyor; arayüz dolap panelinin başında
+çerçeveli bir uyarı gösteriyor: rembg yoksa kurulum komutu, rembg sonradan
+kurulduysa "N kıyafet yedek yöntemle kırpılmış — silip yeniden ekle".
+Kıyafet ekleme uyarısındaki komut da `pip install "rembg[cpu]"` oldu (sade
+`pip install rembg` motor kurmuyor). Tarayıcıda üç durum denendi (gerçek
+dolap: gizli; rembg yok; 3 yedek kırpık), konsol temiz. 2 yeni test
+(toplam 441).

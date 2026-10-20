@@ -117,9 +117,17 @@ def wardrobe() -> JSONResponse:
                 g["category"], {}).get("z", 99),
             "layer_ready": bool(layer and layer["status"] == "ready"),
             "layer_status": layer["status"] if layer else "yok",
+            # "flood" = arka plan yedek yöntemle temizlendi (§57). rembg
+            # sonradan kurulsa da bu kırpık kaba kalır — arayüz uyarıyor.
+            "cutout_method": g["cutout_method"],
         })
 
+    from wardrobe.cutout import has_rembg
+
     return JSONResponse({
+        # rembg yoksa kırpma ve kişi silüeti kaba — arayüz görünür uyarı
+        # veriyor; eskiden yalnızca `doctor` "opsiyonel" diyordu (§57).
+        "rembg": has_rembg(),
         "garments": garments,
         "categories": {
             k: {"label": v["label"], "z": v["z"], "slots": list(v["slots"])}

@@ -274,8 +274,13 @@ def cmd_doctor(args) -> int:
     else:
         # Sade `pip install rembg` motor kurmuyor: paket import edilirken
         # sys.exit(1) çağırıyor. Doğru komut [cpu] ekiyle olan.
-        print('  ○ rembg   yok/eksik → flood yedeği kullanılıyor')
+        #
+        # ✗, ○ DEĞİL (§57): dış denemede rembg çalışmıyordu, doctor yine
+        # "sağlam" dedi ve sonuç arka planı silinmemiş kırpıklar ile delikli
+        # bir pantolon katmanı oldu. Kişi silüeti de rembg'den geliyor.
+        print('  ✗ rembg   yok/eksik → kırpma kaba, katmanlar bozulabilir')
         print('            Düzeltmek için:  pip install "rembg[cpu]"')
+        ok = False
 
     print("\nVeri:")
     print(f"  {'✓' if Path(DB_PATH).is_file() else '○'} {DB_PATH}")

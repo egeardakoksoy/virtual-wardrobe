@@ -127,3 +127,14 @@ def test_web_sifirdan_kurulumda_veritabanini_kurar(monkeypatch, capsys):
     assert main(["web"]) == 0
     assert "Yeni manken" in capsys.readouterr().out
     assert db.DB_PATH.exists()
+
+
+def test_doctor_rembg_yoksa_hata_verir(monkeypatch, capsys):
+    """rembg yokken doctor "opsiyonel" deyip "sağlam" diyordu; dış denemede
+    kırpıklar arka planıyla kaldı ve pantolon katmanı delikli çıktı (§57)."""
+    import cli
+
+    monkeypatch.setattr(cli, "has_rembg", lambda: False)
+    assert main(["doctor"]) == 1
+    cikti = capsys.readouterr().out
+    assert "✗ rembg" in cikti and 'pip install "rembg[cpu]"' in cikti

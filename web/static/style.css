@@ -564,6 +564,13 @@ main {
   color: var(--murekkep);
 }
 #yukle-durum.uyari { color: var(--uyari); }
+/* rembg uyarısı (§57): sessiz kalmasın diye çerçeveli. */
+#rembg-uyari {
+  color: var(--uyari);
+  border: 1px solid currentColor;
+  padding: 6px 8px;
+  margin: 0 0 10px;
+}
 #yukle-durum.hata, #render-bilgi.hata, #duzenle-bilgi.hata { color: var(--hata); }
 
 #render-img { z-index: 500; }
